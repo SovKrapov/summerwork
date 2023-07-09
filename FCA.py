@@ -311,3 +311,4 @@ if __name__ == '__main__':
     print("Генерация концептов --- %s seconds ---" % (time.time() - start_time))
     print(len(lat.concepts))
 
+#Комментарий для проверки
