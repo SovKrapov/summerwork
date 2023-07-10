@@ -294,6 +294,26 @@ class fca_lattice:
         else:
             return 0
         
+    """
+    def multi_derivation(self):
+        elements = input("Введите список (F или D): ")
+        join = input("Введите значение (and или or): ")
+        derivations = []
+        #inner join
+        if join == 'and':
+            common_derivations = set(self.derivation(elements[0]))
+            for element in elements[1:]:
+                common_derivations.intersection_update(self.derivation(element))
+            derivations.append(common_derivations)
+        elif join == 'or':
+            #outer join
+            for element in elements:
+                derivations.append(self.derivation(element))
+        else:
+            print("Проверьте введеные данные!")
+        return derivations
+    """    
+
 if __name__ == '__main__':
     table = pd.read_csv("out.csv", header=0,index_col=0)
     #binary = pd.read_csv('order_products__prior.csv', header=0)
