@@ -192,6 +192,43 @@ class fca_lattice:
             tmp_df = self.context.loc[q_val, :]
         return set(tmp_df[tmp_df == 1].index)
 
+    def multi_derivation(self):
+        def multi_derivation(self):
+            set_type = input("Введите тип множества (F или D): ")
+            combination_type = input("Введите способ соединения (AND или OR): ")
+            num_elements = int(input("Введите количество элементов: "))
+
+            # Список для хранения результатов деривации
+            derivations = []
+
+            # Определение оси в зависимости от типа подмножества
+            if set_type == "F":
+                axis = 0  # Ось - строки
+            elif set_type == "D":
+                axis = 1  # Ось - столбцы
+            else:
+                print("Неверный тип множества. Допустимые значения: F, D.")
+                return
+
+            # Выполняем деривацию для каждого элемента
+            for i in range(num_elements):
+                element_index = i + 1
+                q_val = input(f"Введите индекс {element_index}-го элемента: ")
+                derived_set = self.derivation(q_val, axis)
+                derivations.append(derived_set)
+
+            # Объединяем результаты деривации в одно множество
+            if combination_type == "AND":
+                combined_set = set.intersection(*derivations)
+            elif combination_type == "OR":
+                combined_set = set.union(*derivations)
+            else:
+                print("Неверный способ соединения. Допустимые значения: AND, OR.")
+                return
+
+            # Выводим результаты
+            print(f"Результат деривации для {set_type}: {combined_set}")
+
     def fill_lattice(self):
         """
         Заполняет двунаправленный граф (решетку). Пересмотреть расчет ребер с инфимумом и генерацию лейблов ребер!!!
@@ -294,25 +331,7 @@ class fca_lattice:
         else:
             return 0
         
-    """
-    def multi_derivation(self):
-        elements = input("Введите список (F или D): ")
-        join = input("Введите значение (and или or): ")
-        derivations = []
-        #inner join
-        if join == 'and':
-            common_derivations = set(self.derivation(elements[0]))
-            for element in elements[1:]:
-                common_derivations.intersection_update(self.derivation(element))
-            derivations.append(common_derivations)
-        elif join == 'or':
-            #outer join
-            for element in elements:
-                derivations.append(self.derivation(element))
-        else:
-            print("Проверьте введеные данные!")
-        return derivations
-    """    
+
 
 if __name__ == '__main__':
     table = pd.read_csv("out.csv", header=0,index_col=0)
