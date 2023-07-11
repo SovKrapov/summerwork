@@ -1,5 +1,6 @@
 import time
 import textwrap
+from typing import List
 
 import joblib
 
@@ -11,7 +12,7 @@ from networkx.drawing.nx_agraph import graphviz_layout
 
 
 class fca_lattice:
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame,df_copy: pd.DataFrame):
         """
         Конструктор класса. Инициализирует основные свойства.
         :param df: Полный бинарный датафрейм, по которому будут определятся концепты.
@@ -23,6 +24,7 @@ class fca_lattice:
         для того чтобы вычислять концепты по сокращенной выборке, а оценки считать по полной.
         """
         self.context = df
+        self.context_copy = df_copy
         # определяем супремум и инфимум решетки
         self.concepts = [{'A': set(self.context.index), 'B': set()}, {'A': set(), 'B': set(self.context.columns)}]
         # проверить следующую строку
@@ -186,47 +188,120 @@ class fca_lattice:
         """
         if axis == 1:
             # поиск по измерениям (столбцам)
-            tmp_df = self.context.loc[:, q_val]
+            tmp_df = self.context_copy.loc[:, q_val]
         else:
             # поиск по показателям (строкам)
-            tmp_df = self.context.loc[q_val, :]
+            tmp_df = self.context_copy.loc[q_val, :]
         return set(tmp_df[tmp_df == 1].index)
 
-    def multi_derivation(self):
-        set_type = input("Введите тип множества (F или D): ")
-        combination_type = input("Введите способ соединения (AND или OR): ")
-        num_elements = int(input("Введите количество элементов: "))
-
-        # Список для хранения результатов деривации
+    def multi_derivation(self, set_type: str, axis: int, combination_type: str, elements: List[str]):
+        """
+        Выполняет деривацию для нескольких элементов на основе указанного типа множества, оси, типа комбинации и элементов.
+        :param set_type: Тип множества ('F' для формального или 'D' для производного)
+        :param axis: Ось, по которой выполняется деривация (0 для строк, 1 для столбцов)
+        :param combination_type: Тип комбинации ('AND' или 'OR')
+        :param elements: Список элементов для деривации
+        :return: Результат деривации
+        """
+        # Список для хранения полученных множеств
         derivations = []
 
-        # Определение оси в зависимости от типа подмножества
+        # Выполнение деривации для каждого элемента
+        for element in elements:
+            derived_set = self.derivation(element, axis)
+            derivations.append(derived_set)
+
+        # Комбинирование полученных множеств
+        if combination_type == 'AND':
+            combined_set = set.intersection(*derivations)
+        elif combination_type == 'OR':
+            combined_set = set.union(*derivations)
+        else:
+            print("Недопустимый тип комбинации. Допустимые значения: 'AND' или 'OR'.")
+            return None
+
+        # Возвращение объединенного множества
+        return combined_set
+
+    def multi_derivation_procedure(lat):
+
+        # Запрос ввода пользователем типа множества
+        set_type = input("Введите тип множества (F для формального, D для производного): ")
+
+        # Определение оси в зависимости от типа множества
         if set_type == "F":
             axis = 0  # Ось - строки
+            set_type2 = "D"  # Тип множества для второй деривации
         elif set_type == "D":
             axis = 1  # Ось - столбцы
+            set_type2 = "F"  # Тип множества для второй деривации
         else:
             print("Неверный тип множества. Допустимые значения: F, D.")
             return
 
-        # Выполняем деривацию для каждого элемента
+        # Тип комбинации для обоих дериваций
+        combination_type = "OR"
+
+        # Запрос ввода пользователем элементов для первой деривации
+        num_elements = int(input("Введите количество элементов: "))
+
+        elements = []
         for i in range(num_elements):
-            element_index = i + 1
-            q_val = input(f"Введите индекс {element_index}-го элемента: ")
-            derived_set = self.derivation(q_val, axis)
-            derivations.append(derived_set)
+            element = input(f"Введите элемент {i + 1}: ")
+            elements.append(element)
 
-        # Объединяем результаты деривации в одно множество
-        if combination_type == "AND":
-            combined_set = set.intersection(*derivations)
-        elif combination_type == "OR":
-            combined_set = set.union(*derivations)
-        else:
-            print("Неверный способ соединения. Допустимые значения: AND, OR.")
-            return
+        # Выполнение первой деривации
+        result1 = lat.multi_derivation(set_type, axis, combination_type, elements)
 
-        # Выводим результаты
-        print(f"Результат деривации для {set_type}: {combined_set}")
+
+        # Выполнение второй деривации на основе результатов первой деривации
+        result2 = lat.multi_derivation(set_type2, 1 - axis, combination_type, list(result1))
+        
+
+        # Удаление неподходящих столбцов из table_copy
+        if set_type.upper() == 'F':
+            table_copy.drop(columns=table_copy.columns.difference(result1), inplace=True)
+        elif set_type.upper() == 'D':
+            table_copy.drop(index=table_copy.index.difference(result1), inplace=True)
+
+        # Удаление неподходящих строк из table_copy
+        if set_type2.upper() == 'F':
+            table_copy.drop(columns=table_copy.columns.difference(result2), inplace=True)
+        elif set_type2.upper() == 'D':
+            table_copy.drop(index=table_copy.index.difference(result2), inplace=True)
+
+
+
+
+    def print_indexes(self):
+        # Вывод индексов столбцов
+        print("Столбцы:", end=" ")
+        print(", ".join(self.context_copy.columns))
+
+        # Вывод индексов строк
+        print("Строки:", end=" ")
+        print(", ".join(self.context_copy.index))
+
+    def user_interface(lat):
+
+        while True:
+            print("Список доступных для ввода элементов: ")
+            lat.print_indexes()
+            print("\nПожалуйста, выберите опцию:")
+            print("1. Выполнить поиск")
+            print("2. Выход")
+
+
+            choice = input("Введите номер выбранной опции (1-2): ")
+
+            if choice == "1":
+                lat.multi_derivation_procedure()
+            elif choice == "2":
+                print("Выход из программы...")
+                break
+            else:
+                print("Неверный выбор. Пожалуйста, попробуйте снова.")
+
 
     def fill_lattice(self):
         """
@@ -334,12 +409,16 @@ class fca_lattice:
 
 if __name__ == '__main__':
     table = pd.read_csv("out.csv", header=0,index_col=0)
+    table_copy = table.copy()  # Создание копии таблицы
+
+
+
     #binary = pd.read_csv('order_products__prior.csv', header=0)
     #table = pd.pivot_table(binary.head(10046), values='add_to_cart_order', index=['order_id'], columns=['product_id'],aggfunc=np.count_nonzero, fill_value=0)
     #запуск таймера
     start_time=time.time()
     #   Инициализация объекта
-    lat = fca_lattice(table)
+    lat = fca_lattice(table, table_copy)  # Передача исходной таблицы и копии в конструктор fca_lattice
     print("Загрузка --- %s seconds ---" % (time.time() - start_time))
     start_time = time.time()
 #     Вызов процедуры расчета решетки. in_close - классический расчет для небольших контекстов, 
