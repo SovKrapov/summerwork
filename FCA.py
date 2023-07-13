@@ -1,7 +1,8 @@
+import copy
 import time
 import textwrap
 from typing import List
-
+import copy
 import joblib
 
 import matplotlib.pyplot as plt
@@ -27,6 +28,8 @@ class fca_lattice:
         self.context_copy = df_copy
         # определяем супремум и инфимум решетки
         self.concepts = [{'A': set(self.context.index), 'B': set()}, {'A': set(), 'B': set(self.context.columns)}]
+
+
         # проверить следующую строку
         self.threshold_base = len(self.context.index)
 
@@ -49,6 +52,7 @@ class fca_lattice:
             self.context_derivation_1.iloc[i] = self.derivation(self.context.columns[i], 1)
         # Инициализация двунаправленного графа для представления решетки
         self.lattice = nx.DiGraph()
+
         # Инициализация двунаправленного графа для экспериментальной решетки с маркированными ребрами (пока не вышло) для ускорения
         # выполнения запросов к ИАМ. Надо бы разделить ИАМ от простого АФП и от Ассоциативных правил.
         # self.lbl_lattice = nx.DiGraph()
@@ -86,6 +90,7 @@ class fca_lattice:
                         new_concept['B'].add(self.context.columns[j])
                         self.concepts.append(new_concept)
                         self.in_close(j + 1, len(self.concepts) - 1, threshold)
+        self.concepts_copy = copy.deepcopy(self.concepts)
 
     def __my_close__(self, column: int, concept_A: set, interval_number: int):
         """
@@ -240,23 +245,20 @@ class fca_lattice:
             return
 
         # Тип комбинации для обоих дериваций
-        combination_type = "OR"
+        combination_type = "AND"
+        combination_type2 = "OR"
 
-        # Запрос ввода пользователем элементов для первой деривации
-        num_elements = int(input("Введите количество элементов: "))
 
         elements = []
-        for i in range(num_elements):
-            element = input(f"Введите элемент {i + 1}: ")
-            elements.append(element)
-
+        element = input(f"Введите элемент : ")
+        elements.append(element)
         # Выполнение первой деривации
         result1 = lat.multi_derivation(set_type, axis, combination_type, elements)
 
 
         # Выполнение второй деривации на основе результатов первой деривации
-        result2 = lat.multi_derivation(set_type2, 1 - axis, combination_type, list(result1))
-        
+        result2 = lat.multi_derivation(set_type2, 1 - axis, combination_type2, list(result1))
+
 
         # Удаление неподходящих столбцов из table_copy
         if set_type.upper() == 'F':
@@ -282,21 +284,40 @@ class fca_lattice:
         print("Строки:", end=" ")
         print(", ".join(self.context_copy.index))
 
+    def print_indexes_for_concepts(self):
+        set_A_union = set.union(*[concept['A'] for concept in lat.concepts_copy])
+        set_B_union = set.union(*[concept['B'] for concept in lat.concepts_copy])
+
+        list_A_union = list(set_A_union)
+        list_B_union = list(set_B_union)
+
+        print("Столбцы")
+        print(list_B_union)
+        print("Cтроки:")
+        print(list_A_union)
+
+
     def user_interface(lat):
 
         while True:
-            print("Список доступных для ввода элементов: ")
-            lat.print_indexes()
+
             print("\nПожалуйста, выберите опцию:")
-            print("1. Выполнить поиск")
-            print("2. Выход")
+            print("1. Выполнить поиск через деревацию")
+            print("2. Выполнить поиск через концепты")
+            print("3. Выход")
 
 
             choice = input("Введите номер выбранной опции (1-2): ")
 
             if choice == "1":
+                print("Список доступных для ввода элементов: ")
+                lat.print_indexes()
                 lat.multi_derivation_procedure()
             elif choice == "2":
+                print("Список доступных для ввода элементов: ")
+                lat.print_indexes_for_concepts()
+                lat.find_element()
+            elif choice == "3":
                 print("Выход из программы...")
                 break
             else:
@@ -361,6 +382,7 @@ class fca_lattice:
         plt.show()
 
     def find_element(lat):
+
         set_type = input("Введите тип множества (F или D): ")
         element = input("Введите элемент: ")
 
@@ -373,17 +395,18 @@ class fca_lattice:
             return
 
         matching_concepts = []
-        for i in range(len(lat.concepts)):
-            if element in lat.concepts[i][axis1]:
+        for i in range(len(lat.concepts_copy)):
+            if element in lat.concepts_copy[i][axis1]:
                 matching_concepts.append(i)
 
         if matching_concepts:
             print("Концепты, содержащие элемент:")
             for concept_idx in matching_concepts:
-                concept = lat.concepts[concept_idx]
+                concept = lat.concepts_copy[concept_idx]
                 print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
         else:
             print("No concepts found containing the element.")
+        lat.concepts_copy = [lat.concepts_copy[i] for i in matching_concepts]
 
     def lattice_query_support(self, axis, el, bound_n):
         if axis == 'A':
@@ -424,6 +447,7 @@ if __name__ == '__main__':
 #     Вызов процедуры расчета решетки. in_close - классический расчет для небольших контекстов, 
 #     stack_my_close - пошаговый расчет (считает только одну часть концептов)
     lat.in_close(0, 0, 0)
+
 
     print("Генерация концептов --- %s seconds ---" % (time.time() - start_time))
     print(len(lat.concepts))
