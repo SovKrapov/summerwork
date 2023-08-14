@@ -1,4 +1,4 @@
-import copy
+
 import time
 import textwrap
 from typing import List
@@ -324,6 +324,126 @@ class fca_lattice:
                 print("Неверный выбор. Пожалуйста, попробуйте снова.")
 
 
+
+    def find_reachable_concepts(lat):
+        # Варианты выбора главной вершины:
+        # supremum_node = 0  - супремум
+        # infimum_node = 1   - инфимум
+        print("Выберите главную вершину:")
+        print("1. Супремум")
+        print("2. Инфимум")
+
+        starting_node_choice = input("Введите номер выбранной опции (1 или 2): ")
+        if starting_node_choice == "1":
+            starting_node = 0  # Супремум
+            direction = "down"  # Направление обхода - вниз
+        elif starting_node_choice == "2":
+            starting_node = len(lat.concepts) - 1  # Инфимум
+            direction = "up"  # Направление обхода - вверх
+
+        num_edges = int(input("Введите количество ребер для поиска достижимых концептов: "))
+        reachable_concepts = set()
+
+        # Используем обход графа в глубину для нахождения всех достижимых концептов
+        def dfs(node, depth, result, visited):
+            # Если достигли нужной глубины или уже посещали этот узел, выходим из рекурсии
+            if depth > num_edges or node in visited:
+                return
+
+            # Добавляем текущий узел в множество достижимых концептов
+            result[depth].append(node)
+            visited.add(node)
+            reachable_concepts.add(node)
+
+            # Определяем список соседей в зависимости от направления обхода
+            neighbors = lat.lattice.successors(node) if direction == "down" else lat.lattice.predecessors(node)
+
+            # Рекурсивно вызываем функцию dfs для соседей текущего узла
+            for neighbor in neighbors:
+                dfs(neighbor, depth + 1, result, visited)
+
+        # Запускаем обход графа в глубину, начиная с указанной вершины
+        result = {i: [] for i in range(num_edges + 1)}
+        visited = set()
+        dfs(starting_node, depth=0, result=result, visited=visited)
+
+        print("Достижимые концепты:")
+        for depth, concepts in result.items():
+            print(f"Достижимые за {depth} ребер: {concepts}")
+        for concept_idx in reachable_concepts:
+            concept = lat.concepts[concept_idx]
+            print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
+
+    def process_reachable_concepts(lat):
+        available_f_elements = set(lat.all_elements['F'])  # Все доступные элементы f
+        available_d_elements = set(lat.all_elements['D'])  # Все доступные элементы d
+        known_supremum = None
+        known_infimum = None
+
+        while True:
+            element = input("Введите элемент (например, f2 или d1), или 'q' для выхода: ")
+
+            if element.lower() == 'q':
+                break
+
+            element_type = element[0]  # Берем первую букву (f или d)
+
+            if element_type.upper() == 'F':
+                known_infimum = lat.find_specific_suitable_concept(lat, element, direction="up",known_infimum=known_infimum)
+                if known_infimum is not None:
+                    available_d_elements &= set(lat.concepts[known_infimum]['B'])  # Пересечение с доступными d
+            elif element_type.upper() == 'D':
+                known_supremum = lat.find_specific_suitable_concept(lat, element, direction="down",known_supremum=known_supremum)
+                if known_supremum is not None:
+                    available_f_elements &= set(lat.concepts[known_supremum]['A'])  # Пересечение с доступными f
+            else:
+                print("Недопустимый тип множества.")
+
+        print("Завершение работы.")
+    def find_specific_suitable_concept(lat, element, direction, known_supremum=None, known_infimum=None):
+
+        if direction == "up":
+            starting_node = len(lat.concepts) - 1  # Инфимум
+            if known_infimum is not None:
+                starting_node = known_infimum
+        elif direction == "down":
+            starting_node = 0  # Супремум
+            if known_supremum is not None:
+                starting_node = known_supremum
+        else:
+            print("Недопустимый тип множества.")
+            return
+
+        found_concept = None  # Флаг, который указывает, что нужный концепт найден
+
+        def dfs(node, visited):
+            nonlocal found_concept  # Объявляем, что будем использовать переменную из внешней области видимости
+
+            # Если уже нашли нужный концепт, завершаем рекурсию
+            if found_concept is not None:
+                return
+
+            visited.add(node)
+
+            # Определяем список соседей в зависимости от направления обхода
+            neighbors = lat.lattice.successors(node) if direction == "down" else lat.lattice.predecessors(node)
+
+            # Проверяем, содержится ли элемент в текущем концепте
+            concept = lat.concepts[node]
+            if element in concept['A'] or element in concept['B']:
+                found_concept = node  # Устанавливаем флаг, что нужный концепт найден
+                return
+
+            # Рекурсивно вызываем функцию dfs для соседей текущего узла
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    dfs(neighbor, visited)
+
+        dfs(starting_node, visited=set())
+
+
+        return found_concept
+
     def fill_lattice(self):
         """
         Заполняет двунаправленный граф (решетку). Пересмотреть расчет ребер с инфимумом и генерацию лейблов ребер!!!
@@ -395,6 +515,8 @@ class fca_lattice:
             return
 
         matching_concepts = []
+        start_time = time.time()
+        print("Загрузка --- %s seconds ---" % (time.time() - start_time))
         for i in range(len(lat.concepts_copy)):
             if element in lat.concepts_copy[i][axis1]:
                 matching_concepts.append(i)
@@ -404,6 +526,7 @@ class fca_lattice:
             for concept_idx in matching_concepts:
                 concept = lat.concepts_copy[concept_idx]
                 print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
+            print("Загрузка --- %s seconds ---" % (time.time() - start_time))
         else:
             print("No concepts found containing the element.")
         lat.concepts_copy = [lat.concepts_copy[i] for i in matching_concepts]
