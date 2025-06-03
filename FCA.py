@@ -239,7 +239,7 @@ class fca_lattice:
         elements = []
         while True:
             element = input("Введите элемент (или 'стоп' для выхода): ")
-            if element.lower() == 'стоп':
+            if element.lower() == 'stop':
                 break
             elements.append(element)
         # Выполнение первой деривации
@@ -344,6 +344,13 @@ class fca_lattice:
         for concept_idx in reachable_concepts:
             concept = lat.concepts[concept_idx]
             print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
+
+    def reset_context_and_table(self):
+        """
+        Сбрасывает context_copy и table_copy к исходному контексту (self.context).
+        """
+        self.context_copy = self.context.copy()
+        globals()['table_copy'] = self.context.copy()
 
     def process_reachable_concepts(lat):
         available_f_elements = set(lat.all_elements['F'])  # Все доступные элементы f
