@@ -4,7 +4,7 @@ import textwrap
 from typing import List
 import copy
 import joblib
-
+import datetime
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -236,10 +236,12 @@ class fca_lattice:
         combination_type = "AND"
         combination_type2 = "OR"
 
-
         elements = []
-        element = input(f"Введите элемент : ")
-        elements.append(element)
+        while True:
+            element = input("Введите элемент (или 'стоп' для выхода): ")
+            if element.lower() == 'стоп':
+                break
+            elements.append(element)
         # Выполнение первой деривации
         result1 = lat.multi_derivation(set_type, axis, combination_type, elements)
 
@@ -263,7 +265,17 @@ class fca_lattice:
 
 
 
+
     def print_indexes(self):
+        # Вывод индексов столбцов
+        print("Столбцы:", end=" ")
+        print(", ".join(self.context.columns))
+
+        # Вывод индексов строк
+        print("Строки:", end=" ")
+        print(", ".join(self.context.index))
+
+    def print_copy_indexes(self):
         # Вывод индексов столбцов
         print("Столбцы:", end=" ")
         print(", ".join(self.context_copy.columns))
@@ -273,8 +285,8 @@ class fca_lattice:
         print(", ".join(self.context_copy.index))
 
     def print_indexes_for_concepts(self):
-        set_A_union = set.union(*[concept['A'] for concept in lat.concepts_copy])
-        set_B_union = set.union(*[concept['B'] for concept in lat.concepts_copy])
+        set_A_union = set.union(*[concept['A'] for concept in lat.concepts])
+        set_B_union = set.union(*[concept['B'] for concept in lat.concepts])
 
         list_A_union = list(set_A_union)
         list_B_union = list(set_B_union)
@@ -458,9 +470,9 @@ class fca_lattice:
         )
 
         plt.axis("off")
-        plt.tight_layout()
-        plt.show(block=False)
-        plt.pause(0.1)
+
+        plt.show()
+        plt.pause(1)
 
     def find_element(lat):
 
@@ -491,6 +503,31 @@ class fca_lattice:
         else:
             print("No concepts found containing the element.")
         lat.concepts_copy = [lat.concepts_copy[i] for i in matching_concepts]
+    def user_interface(self):
+        while True:
+            print("\nВыберите действие:")
+            print("1. Выполнить поиск через деревацию")
+            print("2. Выполнить поиск через концепты")
+            print("3. Найти достижимые концепты от супремума/инфимума")
+            print("4. Выход")
+
+            choice = input("Введите номер выбранной опции (1-4): ")
+
+            if choice == "1":
+                print("Список доступных для ввода элементов: ")
+                lat.print_copy_indexes()
+                lat.multi_derivation_procedure()
+            elif choice == "2":
+                print("Список доступных для ввода элементов: ")
+                lat.print_indexes_for_concepts()
+                lat.find_element()
+            elif choice == "3":
+                lat.find_reachable_concepts()
+            elif choice == "4":
+                print("Выход из программы...")
+                break
+            else:
+                print("Неверный выбор. Пожалуйста, попробуйте снова.")
 
     def lattice_query_support(self, axis, el, bound_n):
         if axis == 'A':
@@ -553,8 +590,22 @@ class MockContext:
         }
 
     def save_to_csv(self, path: str = "mock_out.csv"):
+        """
+        Сохраняет DataFrame в CSV-файл, автоматически генерируя уникальное имя файла.
+        """
         if self.context_df is not None:
-            self.context_df.to_csv(path)
+            # Генерируем уникальное имя файла на основе текущей даты и времени
+            now = datetime.datetime.now()
+            timestamp = now.strftime("%Y%m%d_%H%M%S")  # Формат: годмесяцдень_часыминутысекунды
+            base_name = path.rsplit('.', 1)[0] if '.' in path else path  # Обрезаем расширение, если оно есть
+            file_extension = '.' + path.rsplit('.', 1)[
+                1] if '.' in path else '.csv'  # Получаем расширение если оно есть
+            unique_path = f"{base_name}_{timestamp}{file_extension}"
+
+            self.context_df.to_csv(unique_path)
+            print(f"Таблица сохранена в файл: {unique_path}")  # Подтверждение сохранения
+        else:
+            print("DataFrame отсутствует. Сохранение невозможно.")
 
     @classmethod
     def from_user_input(cls):
@@ -606,29 +657,6 @@ if __name__ == '__main__':
         lat.fill_lattice()
         lat.lat_draw()
 
-    while True:
-        print("\nВыберите действие:")
-        print("1. Выполнить поиск через деревацию")
-        print("2. Выполнить поиск через концепты")
-        print("3. Найти достижимые концепты от супремума/инфимума")
-        print("4. Выход")
 
-        choice = input("Введите номер выбранной опции (1-5): ")
-
-        if choice == "1":
-            print("Список доступных для ввода элементов: ")
-            lat.print_indexes()
-            lat.multi_derivation_procedure()
-        elif choice == "2":
-            print("Список доступных для ввода элементов: ")
-            lat.print_indexes_for_concepts()
-            lat.find_element()
-        elif choice == "3":
-            lat.find_reachable_concepts()
-        elif choice == "6":
-            print("Выход из программы...")
-            break
-        else:
-            print("Неверный выбор. Пожалуйста, попробуйте снова.")
 
 #Комментарий для проверки
