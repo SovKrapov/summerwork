@@ -222,10 +222,10 @@ class fca_lattice:
         set_type = input("Введите тип множества (F для формального, D для производного): ")
 
         # Определение оси в зависимости от типа множества
-        if set_type == "F":
+        if set_type.upper() == "F":
             axis = 0  # Ось - строки
             set_type2 = "D"  # Тип множества для второй деривации
-        elif set_type == "D":
+        elif set_type.upper() == "D":
             axis = 1  # Ось - столбцы
             set_type2 = "F"  # Тип множества для второй деривации
         else:
@@ -283,35 +283,6 @@ class fca_lattice:
         print(list_B_union)
         print("Cтроки:")
         print(list_A_union)
-
-
-    def user_interface(lat):
-
-        while True:
-
-            print("\nПожалуйста, выберите опцию:")
-            print("1. Выполнить поиск через деревацию")
-            print("2. Выполнить поиск через концепты")
-            print("3. Выход")
-
-
-            choice = input("Введите номер выбранной опции (1-2): ")
-
-            if choice == "1":
-                print("Список доступных для ввода элементов: ")
-                lat.print_indexes()
-                lat.multi_derivation_procedure()
-            elif choice == "2":
-                print("Список доступных для ввода элементов: ")
-                lat.print_indexes_for_concepts()
-                lat.find_element()
-            elif choice == "3":
-                print("Выход из программы...")
-                break
-            else:
-                print("Неверный выбор. Пожалуйста, попробуйте снова.")
-
-
 
     def find_reachable_concepts(lat):
         # Варианты выбора главной вершины:
@@ -635,23 +606,29 @@ if __name__ == '__main__':
         lat.fill_lattice()
         lat.lat_draw()
 
-    # Шаг 6. Найдём концепты, содержащие заданный элемент
-    if input("\nНайти концепты, содержащие элемент? (y/n): ").lower() == 'y':
-        lat.find_element()
+    while True:
+        print("\nВыберите действие:")
+        print("1. Выполнить поиск через деревацию")
+        print("2. Выполнить поиск через концепты")
+        print("3. Найти достижимые концепты от супремума/инфимума")
+        print("4. Выход")
 
-    # Шаг 7. Выполним двойную деривацию
-    if input("\nВыполнить деривацию (двойную)? (y/n): ").lower() == 'y':
-        lat.multi_derivation_procedure()
+        choice = input("Введите номер выбранной опции (1-5): ")
 
-    # Шаг 8. Построим решётку
-
-
-    # Шаг 9. Найти достижимые концепты
-    if input("\nНайти достижимые концепты от супремума/инфимума? (y/n): ").lower() == 'y':
-        lat.find_reachable_concepts()
-
-    # Шаг 10. Запуск пользовательского интерфейса выбора (всё в одном)
-    if input("\nЗапустить исследовательский интерфейс? (y/n): ").lower() == 'y':
-        lat.user_interface()
+        if choice == "1":
+            print("Список доступных для ввода элементов: ")
+            lat.print_indexes()
+            lat.multi_derivation_procedure()
+        elif choice == "2":
+            print("Список доступных для ввода элементов: ")
+            lat.print_indexes_for_concepts()
+            lat.find_element()
+        elif choice == "3":
+            lat.find_reachable_concepts()
+        elif choice == "6":
+            print("Выход из программы...")
+            break
+        else:
+            print("Неверный выбор. Пожалуйста, попробуйте снова.")
 
 #Комментарий для проверки
