@@ -58,13 +58,7 @@ class fca_lattice:
         # self.lbl_lattice = nx.DiGraph()
 
     def is_cannonical(self, column, new_a, r):
-        """
-        Проверка концепта на каноничность. Классический алгоритм
-        :param column: номер столца на основе которого сгенерирован концепт
-        :param new_a: объем нового концепта, который нужно проверить на каноничность
-        :param r: номер концепта на основе которго сгененирован новый концепт
-        :return: результат проверки
-        """
+
         for i in range(column, -1, -1):
             if self.context.columns[i] not in self.concepts[r]['B']:
                 if new_a.issubset(self.context_derivation_1.iloc[i]):
@@ -72,13 +66,7 @@ class fca_lattice:
         return True
 
     def in_close(self, column: int, r: int, threshold=0.0):
-        """
-        Закрывает концепт по контексту. Классический алгоритм
-        :param column: номер столбца с которого начать проверку
-        :param r: номер текущего контекста
-        :param threshold: порог (использовался при расчете концептов заданного объема)
-        :return:
-        """
+
         for j in range(column, self.columns_len):
             new_concept = {'A': self.context_derivation_1.iloc[j].intersection(self.concepts[r]['A']), 'B': set()}
             if len(new_concept['A']) == len(self.concepts[r]['A']):
@@ -499,7 +487,9 @@ class fca_lattice:
         )
 
         plt.axis("off")
-        plt.show()
+        plt.tight_layout()
+        plt.show(block=False)
+        plt.pause(0.1)
 
     def find_element(lat):
 
@@ -550,29 +540,118 @@ class fca_lattice:
                         return list(self.lattice.succ[bound_n].items())[n][0]
         else:
             return 0
+
+class MockContext:
+    def __init__(self, num_rows: int, num_cols: int, density: float, seed: int = None):
+        self.num_rows = num_rows
+        self.num_cols = num_cols
+        self.density = max(0.0, min(1.0, density))
+        self.seed = seed
+        self.context_df = None
+        self.generate_context()
+
+    @property
+    def shape_ratio(self) -> float:
+        return round(min(self.num_rows, self.num_cols) / max(self.num_rows, self.num_cols), 3)
+
+    @property
+    def actual_density(self) -> float:
+        if self.context_df is not None:
+            total = self.num_rows * self.num_cols
+            ones = self.context_df.values.sum()
+            return round(ones / total, 3)
+        return 0.0
+
+    def generate_context(self):
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        data = np.random.rand(self.num_rows, self.num_cols) < self.density
+        self.context_df = pd.DataFrame(
+            data.astype(int),
+            index=[f"f{i+1}" for i in range(self.num_rows)],
+            columns=[f"d{j+1}" for j in range(self.num_cols)]
+        )
+
+    def get_parameters(self):
+        return {
+            "Количество строк: ": self.num_rows,
+            "Количество столбцов: ": self.num_cols,
+            "Отношение строки/столбцы: ": self.shape_ratio,
+            "Введеная разряженость: ": self.density,
+            "Реальная разряженость: ": self.actual_density
+        }
+
+    def save_to_csv(self, path: str = "mock_out.csv"):
+        if self.context_df is not None:
+            self.context_df.to_csv(path)
+
+    @classmethod
+    def from_user_input(cls):
+        try:
+            rows = int(input("Введите количество строк: "))
+            cols = int(input("Введите количество столбцов: "))
+            density = float(input("Введите разреженность матрицы (0.0 — 1.0): "))
+            seed = input("Введите seed для генерации (или нажмите Enter): ")
+            seed = int(seed) if seed else None
+            return cls(rows, cols, density, seed)
+        except ValueError:
+            print("Ошибка ввода! Попробуйте снова.")
+            return cls.from_user_input()
         
 
 
 if __name__ == '__main__':
-    table = pd.read_csv("out.csv", header=0,index_col=0)
-    table_copy = table.copy()  # Создание копии таблицы
+    # Шаг 1. Получаем таблицу от пользователя
+    mock = MockContext.from_user_input()
+    print("\nПараметры сгенерированного контекста:")
+    for k, v in mock.get_parameters().items():
+        print(f"{k}: {v}")
 
+    # Шаг 2. Сохраняем по желанию
+    if input("\nСохранить таблицу в CSV? (y/n): ").lower() == 'y':
+        mock.save_to_csv("out.csv")
+        print("Таблица сохранена в 'out.csv'")
 
-
-    #binary = pd.read_csv('order_products__prior.csv', header=0)
-    #table = pd.pivot_table(binary.head(10046), values='add_to_cart_order', index=['order_id'], columns=['product_id'],aggfunc=np.count_nonzero, fill_value=0)
-    #запуск таймера
-    start_time=time.time()
-    #   Инициализация объекта
-    lat = fca_lattice(table, table_copy)  # Передача исходной таблицы и копии в конструктор fca_lattice
-    print("Загрузка --- %s seconds ---" % (time.time() - start_time))
+    # Шаг 3. Инициализация решётки
+    table = mock.context_df
+    table_copy = table.copy()
+    print("\nИнициализация fca_lattice...")
     start_time = time.time()
-#     Вызов процедуры расчета решетки. in_close - классический расчет для небольших контекстов, 
-#     stack_my_close - пошаговый расчет (считает только одну часть концептов)
+    lat = fca_lattice(table, table_copy)
+    print("Загрузка --- %.2f секунд ---" % (time.time() - start_time))
+
+    # Шаг 4. Генерация концептов (in_close — классический метод)
+    print("\nГенерация концептов...")
+    start_time = time.time()
     lat.in_close(0, 0, 0)
+    print("Генерация завершена за %.2f секунд" % (time.time() - start_time))
+    print("Количество концептов:", len(lat.concepts))
+
+    # Шаг 5. Вывод индексов строк и столбцов
+    print("\nСписок всех объектов и признаков:")
+    lat.print_indexes()
+
+    if input("\nПостроить граф решётки? (y/n): ").lower() == 'y':
+        lat.fill_lattice()
+        lat.lat_draw()
+
+    # Шаг 6. Найдём концепты, содержащие заданный элемент
+    if input("\nНайти концепты, содержащие элемент? (y/n): ").lower() == 'y':
+        lat.find_element()
+
+    # Шаг 7. Выполним двойную деривацию
+    if input("\nВыполнить деривацию (двойную)? (y/n): ").lower() == 'y':
+        lat.multi_derivation_procedure()
+
+    # Шаг 8. Построим решётку
 
 
-    print("Генерация концептов --- %s seconds ---" % (time.time() - start_time))
-    print(len(lat.concepts))
+    # Шаг 9. Найти достижимые концепты
+    if input("\nНайти достижимые концепты от супремума/инфимума? (y/n): ").lower() == 'y':
+        lat.find_reachable_concepts()
+
+    # Шаг 10. Запуск пользовательского интерфейса выбора (всё в одном)
+    if input("\nЗапустить исследовательский интерфейс? (y/n): ").lower() == 'y':
+        lat.user_interface()
 
 #Комментарий для проверки
