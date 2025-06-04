@@ -265,24 +265,70 @@ class fca_lattice:
         print(table_copy)
 
     def run_multi_derivation_split_input(lat):
-        user_input = input("Введите элементы через пробел (например: f1 d2 f3 d4): ")
+        user_input = input("Введите элементы через пробел (например: f1 f2/d1 d2) ")
         all_elements = user_input.strip().split()
 
         f_elements = [el for el in all_elements if el.lower().startswith("f")]
         d_elements = [el for el in all_elements if el.lower().startswith("d")]
 
-        if f_elements:
+        if f_elements and not d_elements:
+            # Первая деривация по F
             print(f"\nСписок F-элементов для деривации: {f_elements}")
             print("\nВыполняется деривация по F-элементам...")
             lat.multi_derivation_procedure(f_elements)
 
-        if d_elements:
+            # Затем ввод D из оставшихся
+            remaining_d = list(lat.context_copy.columns)
+            print(f"\nДоступные D-элементы после деривации: {remaining_d}")
+            user_input = input("Введите D-элементы через пробел: ")
+            d_elements = [el for el in user_input.strip().split() if el in remaining_d]
+
             print(f"\nСписок D-элементов для деривации: {d_elements}")
             print("\nВыполняется деривация по D-элементам...")
             lat.multi_derivation_procedure(d_elements)
 
+        elif d_elements and not f_elements:
+            # Первая деривация по D
+            print(f"\nСписок D-элементов для деривации: {d_elements}")
+            print("\nВыполняется деривация по D-элементам...")
+            lat.multi_derivation_procedure(d_elements)
 
+            # Затем ввод F из оставшихся
+            remaining_f = list(lat.context_copy.index)
+            print(f"\nДоступные F-элементы после деривации: {remaining_f}")
+            user_input = input("Введите F-элементы через пробел: ")
+            f_elements = [el for el in user_input.strip().split() if el in remaining_f]
 
+            print(f"\nСписок F-элементов для деривации: {f_elements}")
+            print("\nВыполняется деривация по F-элементам...")
+            lat.multi_derivation_procedure(f_elements)
+
+        else:
+            print("⚠️ Пожалуйста, введите только F- или только D-элементы в одном запросе.")
+    # user_input = input("Введите элементы через пробел (например: f1 d2 f3 d4): ")
+    # all_elements = user_input.strip().split()
+
+    # f_elements = [el for el in all_elements if el.lower().startswith("f")]
+    # d_elements = [el for el in all_elements if el.lower().startswith("d")]
+
+    # if f_elements:
+    #     print(f"\nСписок F-элементов для деривации: {f_elements}")
+    #     print("\nВыполняется деривация по F-элементам...")
+    #     lat.multi_derivation_procedure(f_elements)
+
+    # if d_elements:
+    #     valid_columns = set(lat.context_copy.columns)
+
+    #     # Повторяем ввод, пока не получим только допустимые d-элементы
+    #     while any(d not in valid_columns for d in d_elements):
+    #         invalid = [d for d in d_elements if d not in valid_columns]
+    #         print(f"\n⚠️ Следующие D-элементы отсутствуют в текущем контексте: {invalid}")
+    #         print(f"Доступные D-элементы: {sorted(valid_columns)}")
+    #         retry = input("Введите корректные D-элементы через пробел: ")
+    #         d_elements = [el for el in retry.strip().split() if el in valid_columns]
+    #     print(f"\nСписок D-элементов для деривации: {d_elements}")
+    #     print("\nВыполняется деривация по D-элементам...")
+    #     lat.multi_derivation_procedure(d_elements)
 
 
     def print_indexes(self):
@@ -501,34 +547,33 @@ class fca_lattice:
         plt.pause(1)
 
     def find_element(lat):
+        user_input = input("Введите элементы через пробел (например: f1 d2 f3 d4): ")
+        elements = user_input.strip().split()
 
-        set_type = input("Введите тип множества (F или D): ")
-        element = input("Введите элемент: ")
-
-        if set_type.upper() == 'F':
-            axis1 = 'A'
-        elif set_type.upper() == 'D':
-            axis1 = 'B'
-        else:
-            print("Недопустимый тип множества.")
-            return
+        # Разделяем на f- и d-элементы
+        f_elements = [el for el in elements if el.lower().startswith('f')]
+        d_elements = [el for el in elements if el.lower().startswith('d')]
 
         matching_concepts = []
         start_time = time.time()
-        print("Загрузка --- %s seconds ---" % (time.time() - start_time))
-        for i in range(len(lat.concepts_copy)):
-            if element in lat.concepts_copy[i][axis1]:
+
+        for i, concept in enumerate(lat.concepts_copy):
+            # Проверяем, что все f-элементы есть в концепте['A']
+            has_all_f = all(fe in concept['A'] for fe in f_elements)
+            # Проверяем, что все d-элементы есть в концепте['B']
+            has_all_d = all(de in concept['B'] for de in d_elements)
+
+            if has_all_f and has_all_d:
                 matching_concepts.append(i)
 
         if matching_concepts:
-            print("Концепты, содержащие элемент:")
+            print("Концепты, содержащие все введённые элементы:")
             for concept_idx in matching_concepts:
                 concept = lat.concepts_copy[concept_idx]
                 print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
-            print("Загрузка --- %s seconds ---" % (time.time() - start_time))
+            print("Время поиска --- %s секунд ---" % (time.time() - start_time))
         else:
-            print("No concepts found containing the element.")
-        lat.concepts_copy = [lat.concepts_copy[i] for i in matching_concepts]
+            print("Концептов, содержащих все указанные элементы, не найдено.")
     def user_interface(self):
         while True:
             print("\nВыберите действие:")
@@ -612,24 +657,29 @@ class MockContext:
             "Количество столбцов: ": self.num_cols,
             "Отношение строки/столбцы: ": self.shape_ratio,
             "Введеная разряженость: ": self.density,
-            "Реальная разряженость: ": self.actual_density
+            "Реальная разряженость: ": self.actual_density,
+            "Seed: ":self.seed
         }
 
     def save_to_csv(self, path: str = "mock_out.csv"):
         """
-        Сохраняет DataFrame в CSV-файл, автоматически генерируя уникальное имя файла.
+        Сохраняет DataFrame в CSV-файл, автоматически генерируя уникальное имя файла
+        с указанием seed, плотности и размерности.
         """
         if self.context_df is not None:
-            # Генерируем уникальное имя файла на основе текущей даты и времени
             now = datetime.datetime.now()
-            timestamp = now.strftime("%Y%m%d_%H%M%S")  # Формат: годмесяцдень_часыминутысекунды
-            base_name = path.rsplit('.', 1)[0] if '.' in path else path  # Обрезаем расширение, если оно есть
-            file_extension = '.' + path.rsplit('.', 1)[
-                1] if '.' in path else '.csv'  # Получаем расширение если оно есть
-            unique_path = f"{base_name}_{timestamp}{file_extension}"
+            timestamp = now.strftime("%d-%m-%Y_%H-%M-%S")
+            base_name = path.rsplit('.', 1)[0] if '.' in path else path
+            file_extension = '.' + path.rsplit('.', 1)[1] if '.' in path else '.csv'
+
+            seed_part = f"_seed{self.seed}" if self.seed is not None else ""
+            density_part = f"_density{self.density}"
+            size_part = f"_{self.num_rows}x{self.num_cols}"
+
+            unique_path = f"{base_name}_{timestamp}{seed_part}{density_part}{size_part}{file_extension}"
 
             self.context_df.to_csv(unique_path)
-            print(f"Таблица сохранена в файл: {unique_path}")  # Подтверждение сохранения
+            print(f"Таблица сохранена в файл: {unique_path}")
         else:
             print("DataFrame отсутствует. Сохранение невозможно.")
 
@@ -658,7 +708,7 @@ if __name__ == '__main__':
     # Шаг 2. Сохраняем по желанию
     if input("\nСохранить таблицу в CSV? (y/n): ").lower() == 'y':
         mock.save_to_csv("out.csv")
-        print("Таблица сохранена в 'out.csv'")
+
 
     # Шаг 3. Инициализация решётки
     table = mock.context_df
