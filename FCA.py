@@ -216,51 +216,68 @@ class fca_lattice:
         # Возвращение объединенного множества
         return combined_set
 
-    def multi_derivation_procedure(lat):
-
-        # Запрос ввода пользователем типа множества
-        set_type = input("Введите тип множества (F для формального, D для производного): ")
-
-        # Определение оси в зависимости от типа множества
-        if set_type.upper() == "F":
-            axis = 0  # Ось - строки
-            set_type2 = "D"  # Тип множества для второй деривации
-        elif set_type.upper() == "D":
-            axis = 1  # Ось - столбцы
-            set_type2 = "F"  # Тип множества для второй деривации
-        else:
-            print("Неверный тип множества. Допустимые значения: F, D.")
+    def multi_derivation_procedure(lat, elements: List[str]):
+        if not elements:
+            print("Список элементов пуст.")
             return
 
-        # Тип комбинации для обоих дериваций
+        first = elements[0].lower()
+        if first.startswith("f"):
+            set_type = "F"
+            axis = 0
+            set_type2 = "D"
+        elif first.startswith("d"):
+            set_type = "D"
+            axis = 1
+            set_type2 = "F"
+        else:
+            print("Неизвестный тип элемента:", first)
+            return
+
+        # Типы комбинаций — можно адаптировать
         combination_type = "AND"
         combination_type2 = "OR"
 
-        elements = []
-        while True:
-            element = input("Введите элемент (или 'стоп' для выхода): ")
-            if element.lower() == 'stop':
-                break
-            elements.append(element)
-        # Выполнение первой деривации
+        # Первая деривация
         result1 = lat.multi_derivation(set_type, axis, combination_type, elements)
+        if result1 is None:
+            return
 
-
-        # Выполнение второй деривации на основе результатов первой деривации
+        # Вторая деривация
         result2 = lat.multi_derivation(set_type2, 1 - axis, combination_type2, list(result1))
+        if result2 is None:
+            return
 
-
-        # Удаление неподходящих столбцов из table_copy
+        # Обновление table_copy
         if set_type.upper() == 'F':
-            table_copy.drop(columns=table_copy.columns.difference(result1), inplace=True)
-        elif set_type.upper() == 'D':
             table_copy.drop(index=table_copy.index.difference(result1), inplace=True)
+        elif set_type.upper() == 'D':
+            table_copy.drop(columns=table_copy.columns.difference(result1), inplace=True)
 
-        # Удаление неподходящих строк из table_copy
         if set_type2.upper() == 'F':
-            table_copy.drop(columns=table_copy.columns.difference(result2), inplace=True)
-        elif set_type2.upper() == 'D':
             table_copy.drop(index=table_copy.index.difference(result2), inplace=True)
+        elif set_type2.upper() == 'D':
+            table_copy.drop(columns=table_copy.columns.difference(result2), inplace=True)
+
+        print("\nОбновлённая таблица:")
+        print(table_copy)
+
+    def run_multi_derivation_split_input(lat):
+        user_input = input("Введите элементы через пробел (например: f1 d2 f3 d4): ")
+        all_elements = user_input.strip().split()
+
+        f_elements = [el for el in all_elements if el.lower().startswith("f")]
+        d_elements = [el for el in all_elements if el.lower().startswith("d")]
+
+        if f_elements:
+            print(f"\nСписок F-элементов для деривации: {f_elements}")
+            print("\nВыполняется деривация по F-элементам...")
+            lat.multi_derivation_procedure(f_elements)
+
+        if d_elements:
+            print(f"\nСписок D-элементов для деривации: {d_elements}")
+            print("\nВыполняется деривация по D-элементам...")
+            lat.multi_derivation_procedure(d_elements)
 
 
 
@@ -523,7 +540,7 @@ class fca_lattice:
             if choice == "1":
                 print("Список доступных для ввода элементов: ")
                 lat.print_copy_indexes()
-                lat.multi_derivation_procedure()
+                lat.run_multi_derivation_split_input()
             elif choice == "2":
                 print("Список доступных для ввода элементов: ")
                 lat.print_indexes_for_concepts()
