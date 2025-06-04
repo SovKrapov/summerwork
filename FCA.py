@@ -172,7 +172,7 @@ class fca_lattice:
     # def stack_concepts_repair(self, ):
 
 
-    def derivation(self, q_val: str, axis=0):
+    def derivation(self, q_val: str, axis):
         """
         Вычисляет по контексту множество штрих для одного элемента (строка или столбец)
         :param q_val: индекс столбца или строки
@@ -187,7 +187,7 @@ class fca_lattice:
             tmp_df = self.context_copy.loc[q_val, :]
         return set(tmp_df[tmp_df == 1].index)
 
-    def multi_derivation(self, set_type: str, axis: int, combination_type: str, elements: List[str]):
+    def multi_derivation(self, axis: int, combination_type: str, elements: List[str]):
         """
         Выполняет деривацию для нескольких элементов на основе указанного типа множества, оси, типа комбинации и элементов.
         :param set_type: Тип множества ('F' для формального или 'D' для производного)
@@ -223,13 +223,13 @@ class fca_lattice:
 
         first = elements[0].lower()
         if first.startswith("f"):
-            set_type = "F"
+
             axis = 0
-            set_type2 = "D"
+
         elif first.startswith("d"):
-            set_type = "D"
+
             axis = 1
-            set_type2 = "F"
+
         else:
             print("Неизвестный тип элемента:", first)
             return
@@ -239,25 +239,27 @@ class fca_lattice:
         combination_type2 = "OR"
 
         # Первая деривация
-        result1 = lat.multi_derivation(set_type, axis, combination_type, elements)
+        result1 = lat.multi_derivation( axis, combination_type, elements)
         if result1 is None:
             return
 
         # Вторая деривация
-        result2 = lat.multi_derivation(set_type2, 1 - axis, combination_type2, list(result1))
+        result2 = lat.multi_derivation(1 - axis, combination_type2, list(result1))
         if result2 is None:
             return
-
+        print("table_copy до изменений:\n", table_copy)
+        print("result1:", result1)
+        print("result2:", result2)
         # Обновление table_copy
-        if set_type.upper() == 'F':
-            table_copy.drop(index=table_copy.index.difference(result1), inplace=True)
-        elif set_type.upper() == 'D':
+        if axis == 0:
             table_copy.drop(columns=table_copy.columns.difference(result1), inplace=True)
+        else:
+            table_copy.drop(index=table_copy.index.difference(result1), inplace=True)
 
-        if set_type2.upper() == 'F':
-            table_copy.drop(index=table_copy.index.difference(result2), inplace=True)
-        elif set_type2.upper() == 'D':
+        if (1 - axis) == 0:
             table_copy.drop(columns=table_copy.columns.difference(result2), inplace=True)
+        else:
+            table_copy.drop(index=table_copy.index.difference(result2), inplace=True)
 
         print("\nОбновлённая таблица:")
         print(table_copy)
