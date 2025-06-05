@@ -217,6 +217,8 @@ class fca_lattice:
         return combined_set
 
     def multi_derivation_procedure(self, element: str, table: pd.DataFrame) -> pd.DataFrame:
+        start_time = time.time()
+
         element = element.strip().lower()
 
         if element.startswith("f"):
@@ -248,7 +250,10 @@ class fca_lattice:
         else:
             table = table.loc[table.index.intersection(result2), :]
 
-        return table
+        elapsed = time.time() - start_time
+        print(f"⏱ Выполнение заняло {elapsed:.4f} секунд.")
+
+        return table, elapsed
 
     def print_indexes(self):
         # Вывод индексов столбцов
@@ -466,7 +471,7 @@ class fca_lattice:
 
     def interactive_multi_derivation_loop(self):
         current_table = self.context.copy()  # начальная таблица — копия исходного контекста
-
+        total_time = 0.0  # общее время
         while True:
             print("\nТекущая таблица:")
             print(current_table)
@@ -480,11 +485,12 @@ class fca_lattice:
             if user_input == 'q':
                 break
 
-            current_table = self.multi_derivation_procedure(user_input, current_table)
-
+            current_table, elapsed = self.multi_derivation_procedure(user_input, current_table)
+            total_time += elapsed
             if current_table.empty:
                 print("Результат пуст. Таблица больше не содержит данных.")
                 break
+            print(f"\n🧮 Общее время всех шагов: {total_time:.4f} секунд.")
 
     def interactive_find_element_loop(self):
         while True:
