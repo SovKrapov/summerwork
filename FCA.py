@@ -13,7 +13,7 @@ from networkx.drawing.nx_agraph import graphviz_layout
 
 
 class fca_lattice:
-    def __init__(self, df: pd.DataFrame,df_copy: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame):
         """
         Конструктор класса. Инициализирует основные свойства.
         :param df: Полный бинарный датафрейм, по которому будут определятся концепты.
@@ -25,7 +25,7 @@ class fca_lattice:
         для того чтобы вычислять концепты по сокращенной выборке, а оценки считать по полной.
         """
         self.context = df
-        self.context_copy = df_copy
+
         # определяем супремум и инфимум решетки
         self.concepts = [{'A': set(self.context.index), 'B': set()}, {'A': set(), 'B': set(self.context.columns)}]
 
@@ -181,10 +181,10 @@ class fca_lattice:
         """
         if axis == 1:
             # поиск по измерениям (столбцам)
-            tmp_df = self.context_copy.loc[:, q_val]
+            tmp_df = self.context.loc[:, q_val]
         else:
             # поиск по показателям (строкам)
-            tmp_df = self.context_copy.loc[q_val, :]
+            tmp_df = self.context.loc[q_val, :]
         return set(tmp_df[tmp_df == 1].index)
 
     def multi_derivation(self, axis: int, combination_type: str, elements: List[str]):
@@ -216,15 +216,8 @@ class fca_lattice:
         # Возвращение объединенного множества
         return combined_set
 
-    def multi_derivation_procedure(lat):
-        user_input = input("Введите один элемент (например: f1 или d2): ").strip().lower()
-
-        parts = user_input.split()
-        if len(parts) != 1:
-            print("⚠️ Пожалуйста, введите только один элемент.")
-            return
-
-        element = parts[0]
+    def multi_derivation_procedure(self, element: str, table: pd.DataFrame) -> pd.DataFrame:
+        element = element.strip().lower()
 
         if element.startswith("f"):
             axis = 0
@@ -232,40 +225,30 @@ class fca_lattice:
             axis = 1
         else:
             print("⚠️ Неизвестный тип элемента:", element)
-            return
+            return table  # возвращаем ту же таблицу без изменений
 
         elements = [element]
 
-        combination_type = "AND"
-        combination_type2 = "OR"
-
-        # Первая деривация
-        result1 = lat.multi_derivation(axis, combination_type, elements)
+        result1 = self.multi_derivation(axis, "AND", elements)
         if result1 is None:
-            return
+            return table
 
-        # Вторая деривация
-        result2 = lat.multi_derivation(1 - axis, combination_type2, list(result1))
+        result2 = self.multi_derivation(1 - axis, "OR", list(result1))
         if result2 is None:
-            return
+            return table
 
-        print("table_copy до изменений:\n", table_copy)
-        print("result1:", result1)
-        print("result2:", result2)
-
-        # Обновление table_copy
+        # фильтруем текущую таблицу
         if axis == 0:
-            table_copy.drop(columns=table_copy.columns.difference(result1), inplace=True)
+            table = table.loc[:, table.columns.intersection(result1)]
         else:
-            table_copy.drop(index=table_copy.index.difference(result1), inplace=True)
+            table = table.loc[table.index.intersection(result1), :]
 
         if (1 - axis) == 0:
-            table_copy.drop(columns=table_copy.columns.difference(result2), inplace=True)
+            table = table.loc[:, table.columns.intersection(result2)]
         else:
-            table_copy.drop(index=table_copy.index.difference(result2), inplace=True)
+            table = table.loc[table.index.intersection(result2), :]
 
-        print("\nОбновлённая таблица:")
-        print(table_copy)
+        return table
 
     def print_indexes(self):
         # Вывод индексов столбцов
@@ -276,26 +259,9 @@ class fca_lattice:
         print("Строки:", end=" ")
         print(", ".join(self.context.index))
 
-    def print_copy_indexes(self):
-        # Вывод индексов столбцов
-        print("Столбцы:", end=" ")
-        print(", ".join(self.context_copy.columns))
 
-        # Вывод индексов строк
-        print("Строки:", end=" ")
-        print(", ".join(self.context_copy.index))
 
-    def print_indexes_for_concepts(self):
-        set_A_union = set.union(*[concept['A'] for concept in lat.concepts])
-        set_B_union = set.union(*[concept['B'] for concept in lat.concepts])
 
-        list_A_union = list(set_A_union)
-        list_B_union = list(set_B_union)
-
-        print("Столбцы")
-        print(list_B_union)
-        print("Cтроки:")
-        print(list_A_union)
 
     def find_reachable_concepts(lat):
         # Варианты выбора главной вершины:
@@ -346,12 +312,7 @@ class fca_lattice:
             concept = lat.concepts[concept_idx]
             print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
 
-    def reset_context_and_table(self):
-        """
-        Сбрасывает context_copy и table_copy к исходному контексту (self.context).
-        """
-        self.context_copy = self.context.copy()
-        globals()['table_copy'] = self.context.copy()
+
 
     def process_reachable_concepts(lat):
         available_f_elements = set(lat.all_elements['F'])  # Все доступные элементы f
@@ -482,15 +443,8 @@ class fca_lattice:
         plt.show()
         plt.pause(1)
 
-    def find_element(lat):
-        user_input = input("Введите один элемент (например: f1 или d2): ").strip().lower()
-
-        parts = user_input.split()
-        if len(parts) != 1:
-            print("⚠️ Пожалуйста, введите только один элемент.")
-            return
-
-        element = parts[0]
+    def find_element(self, element: str):
+        element = element.strip().lower()
 
         if element.startswith("f"):
             target_type = "A"
@@ -498,47 +452,73 @@ class fca_lattice:
             target_type = "B"
         else:
             print("⚠️ Неизвестный тип элемента:", element)
-            return
+            return []
 
         matching_concepts = []
         start_time = time.time()
 
-        for i, concept in enumerate(lat.concepts_copy):
+        for i, concept in enumerate(self.concepts_copy):
             if element in concept[target_type]:
-                matching_concepts.append(i)
+                matching_concepts.append((i, concept))
 
-        if matching_concepts:
-            print("Концепты, содержащие элемент", element + ":")
-            for concept_idx in matching_concepts:
-                concept = lat.concepts_copy[concept_idx]
-                print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
-            print("Время поиска --- %s секунд ---" % (time.time() - start_time))
-        else:
-            print("Концептов, содержащих указанный элемент, не найдено.")
+        elapsed = time.time() - start_time
+        return matching_concepts, elapsed
+
+    def interactive_multi_derivation_loop(self):
+        current_table = self.context.copy()  # начальная таблица — копия исходного контекста
+
+        while True:
+            print("\nТекущая таблица:")
+            print(current_table)
+            # Вывод доступных элементов
+            available_f = ", ".join(current_table.index)
+            available_d = ", ".join(current_table.columns)
+            print(f"\nДоступные элементы:")
+            print(f"🔸 Объекты (f): {available_f}")
+            print(f"🔹 Признаки (d): {available_d}")
+            user_input = input("Введите элемент (например: f1 или d2), или 'q' для выхода: ").strip().lower()
+            if user_input == 'q':
+                break
+
+            current_table = self.multi_derivation_procedure(user_input, current_table)
+
+            if current_table.empty:
+                print("Результат пуст. Таблица больше не содержит данных.")
+                break
+
+    def interactive_find_element_loop(self):
+        while True:
+            user_input = input("Введите элемент (например: f1 или d2), или 'q' для выхода: ").strip().lower()
+            if user_input == 'q':
+                break
+
+            concepts, elapsed = self.find_element(user_input)
+            if concepts:
+                print(f"Найдено {len(concepts)} концептов (за {elapsed:.2f} секунд):")
+                for i, c in concepts:
+                    print(f"Концепт {i}: A = {c['A']}, B = {c['B']}")
+            else:
+                print("❌ Концептов не найдено.")
+
     def user_interface(self):
         while True:
             print("\nВыберите действие:")
             print("1. Выполнить поиск через деревацию")
             print("2. Выполнить поиск через концепты")
             print("3. Найти достижимые концепты от супремума/инфимума")
-            print("4. Обновить таблицу для деревации")
-            print("5. Выход")
+            print("не работает. Обновить таблицу для деревации")
+            print("4. Выход")
 
             choice = input("Введите номер выбранной опции (1-4): ")
 
             if choice == "1":
-                print("Список доступных для ввода элементов: ")
-                lat.print_copy_indexes()
-                lat.multi_derivation_procedure()
+                lat.interactive_multi_derivation_loop()
             elif choice == "2":
-                print("Список доступных для ввода элементов: ")
-                lat.print_indexes_for_concepts()
-                lat.find_element()
+                lat.interactive_find_element_loop()
             elif choice == "3":
                 lat.find_reachable_concepts()
+
             elif choice == "4":
-                lat.reset_context_and_table()
-            elif choice == "5":
                 print("Выход из программы...")
                 break
             else:
@@ -656,10 +636,10 @@ if __name__ == '__main__':
 
     # Шаг 3. Инициализация решётки
     table = mock.context_df
-    table_copy = table.copy()
+
     print("\nИнициализация fca_lattice...")
     start_time = time.time()
-    lat = fca_lattice(table, table_copy)
+    lat = fca_lattice(table)
     print("Загрузка --- %.2f секунд ---" % (time.time() - start_time))
 
     # Шаг 4. Генерация концептов (in_close — классический метод)
