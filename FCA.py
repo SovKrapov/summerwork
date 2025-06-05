@@ -782,7 +782,7 @@ if __name__ == '__main__':
         print(f"{k}: {v}")
 
 
-    mock.save_to_csv("out.csv")
+    mock.save_to_csv("table.csv")
 
 
 
