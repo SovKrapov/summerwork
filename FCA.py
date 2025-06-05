@@ -216,30 +216,31 @@ class fca_lattice:
         # Возвращение объединенного множества
         return combined_set
 
-    def multi_derivation_procedure(lat, elements: List[str]):
-        if not elements:
-            print("Список элементов пуст.")
+    def multi_derivation_procedure(lat):
+        user_input = input("Введите один элемент (например: f1 или d2): ").strip().lower()
+
+        parts = user_input.split()
+        if len(parts) != 1:
+            print("⚠️ Пожалуйста, введите только один элемент.")
             return
 
-        first = elements[0].lower()
-        if first.startswith("f"):
+        element = parts[0]
 
+        if element.startswith("f"):
             axis = 0
-
-        elif first.startswith("d"):
-
+        elif element.startswith("d"):
             axis = 1
-
         else:
-            print("Неизвестный тип элемента:", first)
+            print("⚠️ Неизвестный тип элемента:", element)
             return
 
-        # Типы комбинаций — можно адаптировать
+        elements = [element]
+
         combination_type = "AND"
         combination_type2 = "OR"
 
         # Первая деривация
-        result1 = lat.multi_derivation( axis, combination_type, elements)
+        result1 = lat.multi_derivation(axis, combination_type, elements)
         if result1 is None:
             return
 
@@ -247,9 +248,11 @@ class fca_lattice:
         result2 = lat.multi_derivation(1 - axis, combination_type2, list(result1))
         if result2 is None:
             return
+
         print("table_copy до изменений:\n", table_copy)
         print("result1:", result1)
         print("result2:", result2)
+
         # Обновление table_copy
         if axis == 0:
             table_copy.drop(columns=table_copy.columns.difference(result1), inplace=True)
@@ -263,73 +266,6 @@ class fca_lattice:
 
         print("\nОбновлённая таблица:")
         print(table_copy)
-
-    def run_multi_derivation_split_input(lat):
-        user_input = input("Введите элементы через пробел (например: f1 f2/d1 d2) ")
-        all_elements = user_input.strip().split()
-
-        f_elements = [el for el in all_elements if el.lower().startswith("f")]
-        d_elements = [el for el in all_elements if el.lower().startswith("d")]
-
-        if f_elements and not d_elements:
-            # Первая деривация по F
-            print(f"\nСписок F-элементов для деривации: {f_elements}")
-            print("\nВыполняется деривация по F-элементам...")
-            lat.multi_derivation_procedure(f_elements)
-
-            # Затем ввод D из оставшихся
-            remaining_d = list(lat.context_copy.columns)
-            print(f"\nДоступные D-элементы после деривации: {remaining_d}")
-            user_input = input("Введите D-элементы через пробел: ")
-            d_elements = [el for el in user_input.strip().split() if el in remaining_d]
-
-            print(f"\nСписок D-элементов для деривации: {d_elements}")
-            print("\nВыполняется деривация по D-элементам...")
-            lat.multi_derivation_procedure(d_elements)
-
-        elif d_elements and not f_elements:
-            # Первая деривация по D
-            print(f"\nСписок D-элементов для деривации: {d_elements}")
-            print("\nВыполняется деривация по D-элементам...")
-            lat.multi_derivation_procedure(d_elements)
-
-            # Затем ввод F из оставшихся
-            remaining_f = list(lat.context_copy.index)
-            print(f"\nДоступные F-элементы после деривации: {remaining_f}")
-            user_input = input("Введите F-элементы через пробел: ")
-            f_elements = [el for el in user_input.strip().split() if el in remaining_f]
-
-            print(f"\nСписок F-элементов для деривации: {f_elements}")
-            print("\nВыполняется деривация по F-элементам...")
-            lat.multi_derivation_procedure(f_elements)
-
-        else:
-            print("⚠️ Пожалуйста, введите только F- или только D-элементы в одном запросе.")
-    # user_input = input("Введите элементы через пробел (например: f1 d2 f3 d4): ")
-    # all_elements = user_input.strip().split()
-
-    # f_elements = [el for el in all_elements if el.lower().startswith("f")]
-    # d_elements = [el for el in all_elements if el.lower().startswith("d")]
-
-    # if f_elements:
-    #     print(f"\nСписок F-элементов для деривации: {f_elements}")
-    #     print("\nВыполняется деривация по F-элементам...")
-    #     lat.multi_derivation_procedure(f_elements)
-
-    # if d_elements:
-    #     valid_columns = set(lat.context_copy.columns)
-
-    #     # Повторяем ввод, пока не получим только допустимые d-элементы
-    #     while any(d not in valid_columns for d in d_elements):
-    #         invalid = [d for d in d_elements if d not in valid_columns]
-    #         print(f"\n⚠️ Следующие D-элементы отсутствуют в текущем контексте: {invalid}")
-    #         print(f"Доступные D-элементы: {sorted(valid_columns)}")
-    #         retry = input("Введите корректные D-элементы через пробел: ")
-    #         d_elements = [el for el in retry.strip().split() if el in valid_columns]
-    #     print(f"\nСписок D-элементов для деривации: {d_elements}")
-    #     print("\nВыполняется деривация по D-элементам...")
-    #     lat.multi_derivation_procedure(d_elements)
-
 
     def print_indexes(self):
         # Вывод индексов столбцов
@@ -547,47 +483,53 @@ class fca_lattice:
         plt.pause(1)
 
     def find_element(lat):
-        user_input = input("Введите элементы через пробел (например: f1 d2 f3 d4): ")
-        elements = user_input.strip().split()
+        user_input = input("Введите один элемент (например: f1 или d2): ").strip().lower()
 
-        # Разделяем на f- и d-элементы
-        f_elements = [el for el in elements if el.lower().startswith('f')]
-        d_elements = [el for el in elements if el.lower().startswith('d')]
+        parts = user_input.split()
+        if len(parts) != 1:
+            print("⚠️ Пожалуйста, введите только один элемент.")
+            return
+
+        element = parts[0]
+
+        if element.startswith("f"):
+            target_type = "A"
+        elif element.startswith("d"):
+            target_type = "B"
+        else:
+            print("⚠️ Неизвестный тип элемента:", element)
+            return
 
         matching_concepts = []
         start_time = time.time()
 
         for i, concept in enumerate(lat.concepts_copy):
-            # Проверяем, что все f-элементы есть в концепте['A']
-            has_all_f = all(fe in concept['A'] for fe in f_elements)
-            # Проверяем, что все d-элементы есть в концепте['B']
-            has_all_d = all(de in concept['B'] for de in d_elements)
-
-            if has_all_f and has_all_d:
+            if element in concept[target_type]:
                 matching_concepts.append(i)
 
         if matching_concepts:
-            print("Концепты, содержащие все введённые элементы:")
+            print("Концепты, содержащие элемент", element + ":")
             for concept_idx in matching_concepts:
                 concept = lat.concepts_copy[concept_idx]
                 print(f"Концепт {concept_idx}: A = {concept['A']}, B = {concept['B']}")
             print("Время поиска --- %s секунд ---" % (time.time() - start_time))
         else:
-            print("Концептов, содержащих все указанные элементы, не найдено.")
+            print("Концептов, содержащих указанный элемент, не найдено.")
     def user_interface(self):
         while True:
             print("\nВыберите действие:")
             print("1. Выполнить поиск через деревацию")
             print("2. Выполнить поиск через концепты")
             print("3. Найти достижимые концепты от супремума/инфимума")
-            print("4. Выход")
+            print("4. Обновить таблицу для деревации")
+            print("5. Выход")
 
             choice = input("Введите номер выбранной опции (1-4): ")
 
             if choice == "1":
                 print("Список доступных для ввода элементов: ")
                 lat.print_copy_indexes()
-                lat.run_multi_derivation_split_input()
+                lat.multi_derivation_procedure()
             elif choice == "2":
                 print("Список доступных для ввода элементов: ")
                 lat.print_indexes_for_concepts()
@@ -595,6 +537,8 @@ class fca_lattice:
             elif choice == "3":
                 lat.find_reachable_concepts()
             elif choice == "4":
+                lat.reset_context_and_table()
+            elif choice == "5":
                 print("Выход из программы...")
                 break
             else:
