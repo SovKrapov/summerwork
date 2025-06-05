@@ -764,7 +764,8 @@ class MockContext:
         try:
             rows = int(input("Введите количество строк: "))
             cols = int(input("Введите количество столбцов: "))
-            density = float(input("Введите разреженность матрицы (0.0 — 1.0): "))
+            density_input = input("Введите разреженность матрицы (0.0 — 1.0): ").replace(',', '.')
+            density = float(density_input)
             seed = input("Введите seed для генерации (или нажмите Enter): ")
             seed = int(seed) if seed else None
             return cls(rows, cols, density, seed)
@@ -803,7 +804,7 @@ if __name__ == '__main__':
 
     print("\nСписок всех объектов и признаков:")
     lat.print_indexes()
-
+    lat.user_interface()
 
 
 
