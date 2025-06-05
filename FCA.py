@@ -8,6 +8,7 @@ import datetime
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import random
 import pandas as pd
 from networkx.drawing.nx_agraph import graphviz_layout
 
@@ -251,7 +252,7 @@ class fca_lattice:
             table = table.loc[table.index.intersection(result2), :]
 
         elapsed = time.time() - start_time
-        print(f"⏱ Выполнение заняло {elapsed:.4f} секунд.")
+
 
         return table, elapsed
 
@@ -448,7 +449,9 @@ class fca_lattice:
         plt.show()
         plt.pause(1)
 
-    def find_element(self, element: str):
+    def find_element(self, element: str, concepts: list[tuple[int, dict]]):
+
+        start_time = time.time()
         element = element.strip().lower()
 
         if element.startswith("f"):
@@ -457,54 +460,188 @@ class fca_lattice:
             target_type = "B"
         else:
             print("⚠️ Неизвестный тип элемента:", element)
-            return []
+            return [], 0.0
 
-        matching_concepts = []
-        start_time = time.time()
-
-        for i, concept in enumerate(self.concepts_copy):
-            if element in concept[target_type]:
-                matching_concepts.append((i, concept))
+        matching_concepts = [(i, concept) for i, concept in concepts if element in concept[target_type]]
 
         elapsed = time.time() - start_time
+        print(f"⏱ Выполнение заняло {elapsed:.8f} секунд.")
         return matching_concepts, elapsed
 
     def interactive_multi_derivation_loop(self):
-        current_table = self.context.copy()  # начальная таблица — копия исходного контекста
+        current_table = self.context.copy()  # начальная таблица
         total_time = 0.0  # общее время
+        used_f = set()
+        used_d = set()
+
         while True:
-            print("\nТекущая таблица:")
+            print("\n📊 Текущая таблица:")
             print(current_table)
-            # Вывод доступных элементов
-            available_f = ", ".join(current_table.index)
-            available_d = ", ".join(current_table.columns)
-            print(f"\nДоступные элементы:")
-            print(f"🔸 Объекты (f): {available_f}")
-            print(f"🔹 Признаки (d): {available_d}")
+
+            # Определение доступных f и d
+            available_f = set(current_table.index) - used_f
+            available_d = set(current_table.columns) - used_d
+
+            if not available_f and not available_d:
+                print("❌ Больше нет доступных элементов для ввода.")
+                break
+
+            print("\nДоступные элементы:")
+            print(f"🔸 Объекты (f): {', '.join(sorted(available_f)) if available_f else '(пусто)'}")
+            print(f"🔹 Признаки (d): {', '.join(sorted(available_d)) if available_d else '(пусто)'}")
+
             user_input = input("Введите элемент (например: f1 или d2), или 'q' для выхода: ").strip().lower()
             if user_input == 'q':
                 break
 
+            if user_input in used_f or user_input in used_d:
+                print("⚠️ Этот элемент уже был использован. Введите другой.")
+                continue
+
+            if user_input.startswith("f") and user_input not in available_f:
+                print("⚠️ Элемент не найден среди доступных f.")
+                continue
+            elif user_input.startswith("d") and user_input not in available_d:
+                print("⚠️ Элемент не найден среди доступных d.")
+                continue
+
+            # Выполнение деривации
             current_table, elapsed = self.multi_derivation_procedure(user_input, current_table)
             total_time += elapsed
+
+            # Запись использованного элемента
+            if user_input.startswith("f"):
+                used_f.add(user_input)
+            elif user_input.startswith("d"):
+                used_d.add(user_input)
+
             if current_table.empty:
-                print("Результат пуст. Таблица больше не содержит данных.")
+                print("❌ Результат пуст. Таблица больше не содержит данных.")
                 break
-            print(f"\n🧮 Общее время всех шагов: {total_time:.4f} секунд.")
+
+            print(f"\n🧮 Общее время всех шагов: {total_time:.8f} секунд.")
 
     def interactive_find_element_loop(self):
+        import copy
+
+        total_time = 0.0
+        current_concepts = None  # None — значит искать по всем
+        used_f = set()
+        used_d = set()
+
+
+        # Локальная копия концептов
+        concepts_base = copy.deepcopy(self.concepts)
+
         while True:
+
+
+            # Определяем пространство поиска
+            if current_concepts is None:
+                search_space = list(enumerate(concepts_base))
+            else:
+                search_space = current_concepts
+
+            # Сбор доступных f и d (исключая уже использованные)
+            available_f = set()
+            available_d = set()
+            for _, concept in search_space:
+                available_f.update(concept['A'])
+                available_d.update(concept['B'])
+
+            available_f -= used_f
+            available_d -= used_d
+
+            if not available_f and not available_d:
+                print("❌ Нет доступных элементов для поиска. Завершение.")
+                break
+
+            print(f"Доступные f: {', '.join(sorted(available_f)) if available_f else '(пусто)'}")
+            print(f"Доступные d: {', '.join(sorted(available_d)) if available_d else '(пусто)'}")
+
             user_input = input("Введите элемент (например: f1 или d2), или 'q' для выхода: ").strip().lower()
             if user_input == 'q':
                 break
 
-            concepts, elapsed = self.find_element(user_input)
-            if concepts:
-                print(f"Найдено {len(concepts)} концептов (за {elapsed:.2f} секунд):")
-                for i, c in concepts:
+            if user_input in used_f or user_input in used_d:
+                print("⚠️ Этот элемент уже был использован. Введите другой.")
+                continue
+
+            if user_input.startswith("f") and user_input not in available_f:
+                print("⚠️ Элемент не найден среди доступных f.")
+                continue
+            elif user_input.startswith("d") and user_input not in available_d:
+                print("⚠️ Элемент не найден среди доступных d.")
+                continue
+
+            result, elapsed = self.find_element(user_input, search_space)
+            total_time += elapsed
+
+            if result:
+                print(f"\n✅ Найдено {len(result)} концептов за {elapsed:.4f} секунд.")
+                for i, c in result:
                     print(f"Концепт {i}: A = {c['A']}, B = {c['B']}")
+
+                current_concepts = result
+
+                # Обновление использованных элементов
+                if user_input.startswith("f"):
+                    used_f.add(user_input)
+                elif user_input.startswith("d"):
+                    used_d.add(user_input)
             else:
                 print("❌ Концептов не найдено.")
+                break
+
+            print(f"🧮 Общее время всех шагов: {total_time:.8f} секунд.")
+
+    def generate_auto_requests(self, count):
+
+        total_time = 0.0
+        all_requests = []
+
+        for _ in range(count):
+            used_f = set()
+            used_d = set()
+            current_table = self.context.copy()
+            request = []
+            max_length = random.randint(1, 7)
+
+            while len(request) < max_length:
+                if (current_table.values == 1).all():
+
+                    break
+
+                available_f = list(set(current_table.index) - used_f)
+                available_d = list(set(current_table.columns) - used_d)
+
+
+
+                candidates = []
+                if available_f:
+                    candidates.append('f')
+                if available_d:
+                    candidates.append('d')
+
+                choice_type = random.choice(candidates)
+                if choice_type == 'f':
+                    selected = random.choice(available_f)
+                    used_f.add(selected)
+                else:
+                    selected = random.choice(available_d)
+                    used_d.add(selected)
+
+                current_table, elapsed = self.multi_derivation_procedure(selected, current_table)
+                total_time += elapsed
+                request.append(selected)
+
+            if request:
+                all_requests.append(request)
+            else:
+                print("⚠️ Запрос оказался пустым — это неожиданно и может говорить об ошибке в логике.")
+
+        print(f"\n✅ Генерация {len(all_requests)} наборов завершена. Общее время: {total_time:.8f} секунд.")
+        return all_requests
 
     def user_interface(self):
         while True:
@@ -512,19 +649,28 @@ class fca_lattice:
             print("1. Выполнить поиск через деревацию")
             print("2. Выполнить поиск через концепты")
             print("3. Найти достижимые концепты от супремума/инфимума")
-            print("не работает. Обновить таблицу для деревации")
-            print("4. Выход")
+            print("4. Автоматическая генерация запросов")
+            print("5. Построить граф решётки")
+            print("6. Выход")
 
-            choice = input("Введите номер выбранной опции (1-4): ")
+            choice = input("Введите номер выбранной опции (1-6): ")
 
             if choice == "1":
-                lat.interactive_multi_derivation_loop()
+                self.interactive_multi_derivation_loop()
             elif choice == "2":
-                lat.interactive_find_element_loop()
+                self.interactive_find_element_loop()
             elif choice == "3":
-                lat.find_reachable_concepts()
-
+                self.find_reachable_concepts()
             elif choice == "4":
+                n = int(input("Введите количество запросов для генерации: "))
+                self.generated_requests = self.generate_auto_requests(n)
+                print("\n📋 Сгенерированные запросы:")
+                for i, req in enumerate(self.generated_requests, 1):
+                    print(f"{i}: {req}")
+            elif choice == "5":
+                self.fill_lattice()
+                self.lat_draw()
+            elif choice == "6":
                 print("Выход из программы...")
                 break
             else:
@@ -629,18 +775,17 @@ class MockContext:
 
 
 if __name__ == '__main__':
-    # Шаг 1. Получаем таблицу от пользователя
+
     mock = MockContext.from_user_input()
     print("\nПараметры сгенерированного контекста:")
     for k, v in mock.get_parameters().items():
         print(f"{k}: {v}")
 
-    # Шаг 2. Сохраняем по желанию
-    if input("\nСохранить таблицу в CSV? (y/n): ").lower() == 'y':
-        mock.save_to_csv("out.csv")
+
+    mock.save_to_csv("out.csv")
 
 
-    # Шаг 3. Инициализация решётки
+
     table = mock.context_df
 
     print("\nИнициализация fca_lattice...")
@@ -648,20 +793,18 @@ if __name__ == '__main__':
     lat = fca_lattice(table)
     print("Загрузка --- %.2f секунд ---" % (time.time() - start_time))
 
-    # Шаг 4. Генерация концептов (in_close — классический метод)
+
     print("\nГенерация концептов...")
     start_time = time.time()
     lat.in_close(0, 0, 0)
     print("Генерация завершена за %.2f секунд" % (time.time() - start_time))
     print("Количество концептов:", len(lat.concepts))
 
-    # Шаг 5. Вывод индексов строк и столбцов
+
     print("\nСписок всех объектов и признаков:")
     lat.print_indexes()
 
-    if input("\nПостроить граф решётки? (y/n): ").lower() == 'y':
-        lat.fill_lattice()
-        lat.lat_draw()
+
 
 
 
