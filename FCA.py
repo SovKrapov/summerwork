@@ -596,11 +596,14 @@ class fca_lattice:
             print(f"🧮 Общее время всех шагов: {total_time:.8f} секунд.")
 
     def generate_auto_requests(self, count):
-
         total_time = 0.0
         all_requests = []
+        unique_sets = set()
+        max_attempts = count * 10  # Ограничим число попыток, чтобы избежать бесконечного цикла
 
-        for _ in range(count):
+        attempts = 0
+        while len(all_requests) < count and attempts < max_attempts:
+            attempts += 1
             used_f = set()
             used_d = set()
             current_table = self.context.copy()
@@ -609,19 +612,19 @@ class fca_lattice:
 
             while len(request) < max_length:
                 if (current_table.values == 1).all():
-
                     break
 
                 available_f = list(set(current_table.index) - used_f)
                 available_d = list(set(current_table.columns) - used_d)
-
-
 
                 candidates = []
                 if available_f:
                     candidates.append('f')
                 if available_d:
                     candidates.append('d')
+
+                if not candidates:
+                    break
 
                 choice_type = random.choice(candidates)
                 if choice_type == 'f':
@@ -636,11 +639,20 @@ class fca_lattice:
                 request.append(selected)
 
             if request:
-                all_requests.append(request)
+                request_key = frozenset(request)
+                if request_key not in unique_sets:
+                    unique_sets.add(request_key)
+                    all_requests.append(request)
             else:
-                print("⚠️ Запрос оказался пустым — это неожиданно и может говорить об ошибке в логике.")
+                print("⚠️ Запрос оказался пустым — возможно, ошибка в логике.")
 
-        print(f"\n✅ Генерация {len(all_requests)} наборов завершена. Общее время: {total_time:.8f} секунд.")
+        if len(all_requests) < count:
+            print(
+                f"⚠️ Удалось сгенерировать только {len(all_requests)} уникальных запросов из {count} после {attempts} попыток.")
+        else:
+            print(
+                f"\n✅ Генерация {len(all_requests)} уникальных наборов завершена. Общее время: {total_time:.8f} секунд.")
+
         return all_requests
 
     def user_interface(self):
@@ -804,7 +816,7 @@ if __name__ == '__main__':
 
     print("\nСписок всех объектов и признаков:")
     lat.print_indexes()
-    lat.user_interface()
+
 
 
 
