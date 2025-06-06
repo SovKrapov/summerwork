@@ -599,9 +599,7 @@ class fca_lattice:
             print(f"🧮 Общее время всех шагов: {total_time:.8f} секунд.")
 
     def generate_auto_requests(self):
-        import itertools
         import random
-
         patterns_by_length = {
             2: ['df'],
             3: ['ddf', 'dff'],
@@ -611,66 +609,64 @@ class fca_lattice:
             7: ['ddddddf', 'dddddff', 'ddddfff', 'dddffff', 'ddfffff', 'dffffff'],
         }
 
-        total_time = 0.0
         all_requests = []
+        total_time = 0.0
+
+        # Фильтрация концептов: только те, у которых непустые множества A и B
+        filtered_concepts = [(i, c) for i, c in enumerate(self.concepts) if c['A'] and c['B']]
 
         for length, patterns in patterns_by_length.items():
+            generation_success = False  # отслеживаем хотя бы один успешный запрос
+
             for pattern in patterns:
                 generated = set()
-                fallback_candidates = set()
                 attempts = 0
 
                 while len(generated) < 5 and attempts < 1000:
                     attempts += 1
+                    current_concepts = filtered_concepts.copy()
                     used_f = set()
                     used_d = set()
-                    current_table = self.context.copy()
                     request = []
                     early_stop = False
 
                     for char in pattern:
-                        if (current_table.values == 1).all():
+                        available_f = set()
+                        available_d = set()
+                        for _, concept in current_concepts:
+                            available_f.update(concept['A'])
+                            available_d.update(concept['B'])
+
+                        available_f -= used_f
+                        available_d -= used_d
+
+                        candidates = list(available_f) if char == 'f' else list(available_d)
+
+                        if not candidates:
                             early_stop = True
                             break
 
-                        if char == 'f':
-                            available = list(set(current_table.index) - used_f)
-                        else:
-                            available = list(set(current_table.columns) - used_d)
-
-                        if not available:
-                            early_stop = True
-                            break
-
-                        selected = random.choice(available)
-                        if char == 'f':
-                            used_f.add(selected)
-                        else:
-                            used_d.add(selected)
-
-                        current_table, elapsed = self.multi_derivation_procedure(selected, current_table)
-                        total_time += elapsed
+                        selected = random.choice(candidates)
                         request.append(selected)
 
+                        if char == 'f':
+                            current_concepts = [(i, c) for i, c in current_concepts if selected in c['A']]
+                            used_f.add(selected)
+                        else:
+                            current_concepts = [(i, c) for i, c in current_concepts if selected in c['B']]
+                            used_d.add(selected)
+
                     key = tuple(request)
+                    if len(request) == len(pattern) and key not in generated:
+                        generated.add(key)
+                        all_requests.append(request)
+                        generation_success = True  # хотя бы один запрос сгенерирован
 
-                    if len(request) == len(pattern):
-                        if key not in generated:
-                            generated.add(key)
-                            all_requests.append(request)
-                    elif early_stop and len(request) > 0:
-                        fallback_candidates.add(key)
+            if not generation_success:
+                print(f"⛔ Не удалось сгенерировать запросы для шаблонов длины {length}. Остановка.")
+                break
 
-                # Если не удалось сгенерировать 5 уникальных полных, добавляем короткие
-                if len(generated) < 5:
-                    for key in fallback_candidates:
-                        if key not in generated:
-                            generated.add(key)
-                            all_requests.append(list(key))
-                            if len(generated) >= 5:
-                                break
-
-        print(f"\n✅ Генерация завершена. Всего запросов: {len(all_requests)}. Общее время: {total_time:.8f} секунд.")
+        print(f"\n✅ Генерация завершена. Всего запросов: {len(all_requests)}.")
         return all_requests
 
     def user_interface(self):
@@ -708,18 +704,18 @@ class fca_lattice:
 
     def lattice_query_support(self, axis, el, bound_n):
         if axis == 'A':
-            if el in lat.concepts[bound_n]['A']:
+            if el in self.concepts[bound_n]['A']:
                 return bound_n
             else:
-                items_list = list(lat.lattice.pred[bound_n].items())
+                items_list = list(self.lattice.pred[bound_n].items())
                 for n in range(len(list(self.lattice.pred[bound_n].items()))):
                     if el in list(self.lattice.pred[bound_n].items())[n][1]['add_m'].split(','):
                         return list(self.lattice.pred[bound_n].items())[n][0]
         elif axis == 'B':
-            if el in lat.concepts[bound_n]['B']:
+            if el in self.concepts[bound_n]['B']:
                 return bound_n
             else:
-                items_list = list(lat.lattice.succ[bound_n].items())
+                items_list = list(self.lattice.succ[bound_n].items())
                 for n in range(len(list(self.lattice.succ[bound_n].items()))):
                     if el in list(self.lattice.succ[bound_n].items())[n][1]['add_d'].split(','):
                         return list(self.lattice.succ[bound_n].items())[n][0]
@@ -782,12 +778,18 @@ class MockContext:
             density_part = f"_density{self.density}"
             size_part = f"_{self.num_rows}x{self.num_cols}"
 
-            unique_path = f"{base_name}_{timestamp}{seed_part}{density_part}{size_part}{file_extension}"
+            directory = "tables"
+            os.makedirs(directory, exist_ok=True)  # создаём папку, если её нет
+
+            unique_path = os.path.join(
+                directory,
+                f"{base_name}_{timestamp}{seed_part}{density_part}{size_part}{file_extension}"
+            )
 
             self.context_df.to_csv(unique_path)
-            print(f"Таблица сохранена в файл: {unique_path}")
+            print(f"✅ Таблица сохранена в файл: {unique_path}")
         else:
-            print("DataFrame отсутствует. Сохранение невозможно.")
+            print("❌ DataFrame отсутствует. Сохранение невозможно.")
 
     @classmethod
     def from_user_input(cls):
@@ -835,110 +837,76 @@ class AppController:
         self.lat.user_interface()
 
     def experiment_mode(self):
-        import csv
-        import os
-        import datetime
-        import random
-        import time
 
-        print("\n🔬 Запуск эксперимента...")
 
-        # === Генерация контекста ===
-        rows = 10
-        cols = 10
-        density = 0.4
-        seed = 42
+        print("\n🔬 Запуск расширенного эксперимента...")
 
-        self.mock = MockContext(rows, cols, density, seed)
-        table = self.mock.context_df
+        # Параметры генерации
+        size_range = range(10, 36, 5)  # от 10 до 35 включительно с шагом 5
+        density_range = [round(x, 2) for x in np.arange(0.1, 0.91, 0.05)]  # от 0.1 до 0.9 включительно
 
-        print("→ Генерация контекста завершена.")
-
-        # === Инициализация решетки ===
-        print("→ Построение решетки...")
-        start_time = time.time()
-        self.lat = fca_lattice(table)
-        self.lat.in_close(0, 0, 0)
-        print("→ Построено концептов:", len(self.lat.concepts))
-        print("→ Время генерации решетки: %.3f сек" % (time.time() - start_time))
-
-        # === Подготовка логов ===
+        # Подготовка логов
         now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M")
         os.makedirs("logs", exist_ok=True)
-
-        derivation_path = f"logs/derivation_{now}.csv"
-        concepts_path = f"logs/concepts_{now}.csv"
+        derivation_log_path = f"logs/experiment_derivation_log_{now}.csv"
+        concepts_log_path = f"logs/experiment_concepts_log_{now}.csv"
         headers = ['rows', 'cols', 'density', 'f_count', 'd_count', 'query_time']
 
-        with open(derivation_path, mode='w', newline='', encoding='utf-8') as f:
-            csv.writer(f).writerow(headers)
-        with open(concepts_path, mode='w', newline='', encoding='utf-8') as f:
-            csv.writer(f).writerow(headers)
+        with open(derivation_log_path, mode='w', newline='', encoding='utf-8') as derivation_file, \
+             open(concepts_log_path, mode='w', newline='', encoding='utf-8') as concepts_file:
 
-        # === Генерация 5 случайных запросов по шаблону 'dfdf' ===
-        pattern = 'dfdf'
-        all_requests = []
+            derivation_writer = csv.writer(derivation_file)
+            concepts_writer = csv.writer(concepts_file)
+            derivation_writer.writerow(headers)
+            concepts_writer.writerow(headers)
 
-        attempts = 0
-        while len(all_requests) < 5 and attempts < 1000:
-            attempts += 1
-            used_f = set()
-            used_d = set()
-            current_table = table.copy()
-            request = []
-            early_stop = False
+            for size in size_range:
+                for density in density_range:
+                    print(f"\n📐 Размер: {size}x{size}, плотность: {density}")
 
-            for char in pattern:
-                if (current_table.values == 1).all():
-                    early_stop = True
-                    break
+                    # Генерация контекста
+                    mock = MockContext(size, size, density, seed=42)
+                    table = mock.context_df
 
-                if char == 'f':
-                    available = list(set(current_table.index) - used_f)
-                else:
-                    available = list(set(current_table.columns) - used_d)
+                    print("\n--- Сгенерированная таблица (table) ---")
+                    print(table)
 
-                if not available:
-                    early_stop = True
-                    break
+                    # Построение решетки и концептов
+                    lattice = fca_lattice(table)
+                    lattice.in_close(0, 0, 0)
 
-                selected = random.choice(available)
-                if char == 'f':
-                    used_f.add(selected)
-                else:
-                    used_d.add(selected)
+                    print("\n--- Список концептов (concepts) ---")
+                    for i, concept in enumerate(lattice.concepts):
+                        print(f"{i}: {concept}")
 
-                current_table, _ = self.lat.multi_derivation_procedure(selected, current_table)
-                request.append(selected)
+                    # Генерация запросов
+                    auto_requests = lattice.generate_auto_requests()[:105]  # максимум 105 штук
 
-            if len(request) == len(pattern):
-                all_requests.append(request)
+                    for request in auto_requests:
+                        temp_table = table.copy()
+                        concepts_snapshot = list(enumerate(lattice.concepts))
+                        f_count = sum(1 for x in request if x.startswith('f'))
+                        d_count = sum(1 for x in request if x.startswith('d'))
 
-        print(f"→ Сгенерировано запросов: {len(all_requests)}")
+                        total_derivation_time = 0.0
+                        total_concepts_time = 0.0
 
-        # === Обработка каждого запроса ===
-        for req in all_requests:
-            f_count = sum(1 for x in req if x.startswith('f'))
-            d_count = sum(1 for x in req if x.startswith('d'))
+                        for element in request:
+                            temp_table, elapsed1 = lattice.multi_derivation_procedure(element, temp_table)
+                            _, elapsed2 = lattice.find_element(element, concepts_snapshot)
+                            total_derivation_time += elapsed1
+                            total_concepts_time += elapsed2
 
-            # Деривация
-            start = time.time()
-            _ = self.lat.search_by_derivation(req)
-            duration1 = time.time() - start
+                        derivation_writer.writerow([size, size, density, d_count, f_count,
+                                                   f"{total_derivation_time:.6f}"])
+                        concepts_writer.writerow([size, size, density, d_count, f_count,
+                                                  f"{total_concepts_time:.6f}"])
 
-            with open(derivation_path, mode='a', newline='', encoding='utf-8') as f:
-                csv.writer(f).writerow([rows, cols, density, f_count, d_count, f"{duration1:.6f}"])
+        print("\n✅ Эксперимент завершён. Логи сохранены в:")
+        print(" →", derivation_log_path)
+        print(" →", concepts_log_path)
 
-            # Поиск по концептам
-            start = time.time()
-            _ = self.lat.search_by_concepts(req)
-            duration2 = time.time() - start
 
-            with open(concepts_path, mode='a', newline='', encoding='utf-8') as f:
-                csv.writer(f).writerow([rows, cols, density, f_count, d_count, f"{duration2:.6f}"])
-
-        print("\n✅ Эксперимент завершен.")
-        print(f"📄 Логи сохранены:\n → {derivation_path}\n → {concepts_path}")
 
     def run(self):
         while True:
