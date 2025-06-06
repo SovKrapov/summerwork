@@ -597,6 +597,7 @@ class fca_lattice:
 
     def generate_auto_requests(self):
         import itertools
+        import random
 
         patterns_by_length = {
             2: ['df'],
@@ -613,16 +614,20 @@ class fca_lattice:
         for length, patterns in patterns_by_length.items():
             for pattern in patterns:
                 generated = set()
+                fallback_candidates = set()
                 attempts = 0
+
                 while len(generated) < 5 and attempts < 1000:
                     attempts += 1
                     used_f = set()
                     used_d = set()
                     current_table = self.context.copy()
                     request = []
+                    early_stop = False
 
                     for char in pattern:
                         if (current_table.values == 1).all():
+                            early_stop = True
                             break
 
                         if char == 'f':
@@ -631,7 +636,8 @@ class fca_lattice:
                             available = list(set(current_table.columns) - used_d)
 
                         if not available:
-                            break  # Пропускаем, если нельзя выбрать
+                            early_stop = True
+                            break
 
                         selected = random.choice(available)
                         if char == 'f':
@@ -643,15 +649,23 @@ class fca_lattice:
                         total_time += elapsed
                         request.append(selected)
 
+                    key = tuple(request)
+
                     if len(request) == len(pattern):
-                        key = tuple(request)
                         if key not in generated:
                             generated.add(key)
                             all_requests.append(request)
+                    elif early_stop and len(request) > 0:
+                        fallback_candidates.add(key)
 
+                # Если не удалось сгенерировать 5 уникальных полных, добавляем короткие
                 if len(generated) < 5:
-                    print(
-                        f"⚠️ Не удалось сгенерировать 5 уникальных запросов для шаблона {pattern} (получено {len(generated)}).")
+                    for key in fallback_candidates:
+                        if key not in generated:
+                            generated.add(key)
+                            all_requests.append(list(key))
+                            if len(generated) >= 5:
+                                break
 
         print(f"\n✅ Генерация завершена. Всего запросов: {len(all_requests)}. Общее время: {total_time:.8f} секунд.")
         return all_requests
@@ -786,40 +800,60 @@ class MockContext:
             print("Ошибка ввода! Попробуйте снова.")
             return cls.from_user_input()
         
+class AppController:
+    def __init__(self):
+        self.lat = None  # сюда сохраним fca_lattice
+        self.mock = None
+
+    def user_interface_mode(self):
+        self.mock = MockContext.from_user_input()
+        print("\nПараметры сгенерированного контекста:")
+        for k, v in self.mock.get_parameters().items():
+            print(f"{k}: {v}")
+
+        self.mock.save_to_csv("table.csv")
+
+        table = self.mock.context_df
+
+        print("\nИнициализация fca_lattice...")
+        start_time = time.time()
+        self.lat = fca_lattice(table)
+        print("Загрузка --- %.2f секунд ---" % (time.time() - start_time))
+
+        print("\nГенерация концептов...")
+        start_time = time.time()
+        self.lat.in_close(0, 0, 0)
+        print("Генерация завершена за %.2f секунд" % (time.time() - start_time))
+        print("Количество концептов:", len(self.lat.concepts))
+
+        print("\nСписок всех объектов и признаков:")
+        self.lat.print_indexes()
+
+        self.lat.user_interface()
+
+    def experiment_mode(self):
+        print("🔬 Режим эксперимента пока не реализован.")
+
+    def run(self):
+        while True:
+            print("\n=== Главная Менюшка ===")
+            print("1. Пользовательский интерфейс")
+            print("2. Эксперимент")
+            print("3. Выход")
+
+            main_choice = input("Выберите опцию (1-3): ").strip()
+
+            if main_choice == '1':
+                self.user_interface_mode()
+            elif main_choice == '2':
+                self.experiment_mode()
+            elif main_choice == '3':
+                print("🚪 Выход...")
+                break
+            else:
+                print("❌ Неверный выбор. Попробуйте снова.")
 
 
 if __name__ == '__main__':
-
-    mock = MockContext.from_user_input()
-    print("\nПараметры сгенерированного контекста:")
-    for k, v in mock.get_parameters().items():
-        print(f"{k}: {v}")
-
-
-    mock.save_to_csv("table.csv")
-
-
-
-    table = mock.context_df
-
-    print("\nИнициализация fca_lattice...")
-    start_time = time.time()
-    lat = fca_lattice(table)
-    print("Загрузка --- %.2f секунд ---" % (time.time() - start_time))
-
-
-    print("\nГенерация концептов...")
-    start_time = time.time()
-    lat.in_close(0, 0, 0)
-    print("Генерация завершена за %.2f секунд" % (time.time() - start_time))
-    print("Количество концептов:", len(lat.concepts))
-
-
-    print("\nСписок всех объектов и признаков:")
-    lat.print_indexes()
-
-
-
-
-
-#Комментарий для проверки
+    app = AppController()
+    app.run()
