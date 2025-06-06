@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import random
+import csv
+import os
+import datetime
 import pandas as pd
 from networkx.drawing.nx_agraph import graphviz_layout
 
@@ -832,7 +835,110 @@ class AppController:
         self.lat.user_interface()
 
     def experiment_mode(self):
-        print("🔬 Режим эксперимента пока не реализован.")
+        import csv
+        import os
+        import datetime
+        import random
+        import time
+
+        print("\n🔬 Запуск эксперимента...")
+
+        # === Генерация контекста ===
+        rows = 10
+        cols = 10
+        density = 0.4
+        seed = 42
+
+        self.mock = MockContext(rows, cols, density, seed)
+        table = self.mock.context_df
+
+        print("→ Генерация контекста завершена.")
+
+        # === Инициализация решетки ===
+        print("→ Построение решетки...")
+        start_time = time.time()
+        self.lat = fca_lattice(table)
+        self.lat.in_close(0, 0, 0)
+        print("→ Построено концептов:", len(self.lat.concepts))
+        print("→ Время генерации решетки: %.3f сек" % (time.time() - start_time))
+
+        # === Подготовка логов ===
+        now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M")
+        os.makedirs("logs", exist_ok=True)
+
+        derivation_path = f"logs/derivation_{now}.csv"
+        concepts_path = f"logs/concepts_{now}.csv"
+        headers = ['rows', 'cols', 'density', 'f_count', 'd_count', 'query_time']
+
+        with open(derivation_path, mode='w', newline='', encoding='utf-8') as f:
+            csv.writer(f).writerow(headers)
+        with open(concepts_path, mode='w', newline='', encoding='utf-8') as f:
+            csv.writer(f).writerow(headers)
+
+        # === Генерация 5 случайных запросов по шаблону 'dfdf' ===
+        pattern = 'dfdf'
+        all_requests = []
+
+        attempts = 0
+        while len(all_requests) < 5 and attempts < 1000:
+            attempts += 1
+            used_f = set()
+            used_d = set()
+            current_table = table.copy()
+            request = []
+            early_stop = False
+
+            for char in pattern:
+                if (current_table.values == 1).all():
+                    early_stop = True
+                    break
+
+                if char == 'f':
+                    available = list(set(current_table.index) - used_f)
+                else:
+                    available = list(set(current_table.columns) - used_d)
+
+                if not available:
+                    early_stop = True
+                    break
+
+                selected = random.choice(available)
+                if char == 'f':
+                    used_f.add(selected)
+                else:
+                    used_d.add(selected)
+
+                current_table, _ = self.lat.multi_derivation_procedure(selected, current_table)
+                request.append(selected)
+
+            if len(request) == len(pattern):
+                all_requests.append(request)
+
+        print(f"→ Сгенерировано запросов: {len(all_requests)}")
+
+        # === Обработка каждого запроса ===
+        for req in all_requests:
+            f_count = sum(1 for x in req if x.startswith('f'))
+            d_count = sum(1 for x in req if x.startswith('d'))
+
+            # Деривация
+            start = time.time()
+            _ = self.lat.search_by_derivation(req)
+            duration1 = time.time() - start
+
+            with open(derivation_path, mode='a', newline='', encoding='utf-8') as f:
+                csv.writer(f).writerow([rows, cols, density, f_count, d_count, f"{duration1:.6f}"])
+
+            # Поиск по концептам
+            start = time.time()
+            _ = self.lat.search_by_concepts(req)
+            duration2 = time.time() - start
+
+            with open(concepts_path, mode='a', newline='', encoding='utf-8') as f:
+                csv.writer(f).writerow([rows, cols, density, f_count, d_count, f"{duration2:.6f}"])
+
+        print("\n✅ Эксперимент завершен.")
+        print(f"📄 Логи сохранены:\n → {derivation_path}\n → {concepts_path}")
 
     def run(self):
         while True:
