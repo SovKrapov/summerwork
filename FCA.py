@@ -595,64 +595,65 @@ class fca_lattice:
 
             print(f"🧮 Общее время всех шагов: {total_time:.8f} секунд.")
 
-    def generate_auto_requests(self, count):
+    def generate_auto_requests(self):
+        import itertools
+
+        patterns_by_length = {
+            2: ['df'],
+            3: ['ddf', 'dff'],
+            4: ['dddf', 'ddff', 'dfff'],
+            5: ['ddddf', 'dddff', 'ddfff', 'dffff'],
+            6: ['dddddf', 'ddddff', 'dddfff', 'ddffff', 'dfffff'],
+            7: ['ddddddf', 'dddddff', 'ddddfff', 'dddffff', 'ddfffff', 'dffffff'],
+        }
+
         total_time = 0.0
         all_requests = []
-        unique_sets = set()
-        max_attempts = count * 10  # Ограничим число попыток, чтобы избежать бесконечного цикла
 
-        attempts = 0
-        while len(all_requests) < count and attempts < max_attempts:
-            attempts += 1
-            used_f = set()
-            used_d = set()
-            current_table = self.context.copy()
-            request = []
-            max_length = random.randint(1, 7)
+        for length, patterns in patterns_by_length.items():
+            for pattern in patterns:
+                generated = set()
+                attempts = 0
+                while len(generated) < 5 and attempts < 1000:
+                    attempts += 1
+                    used_f = set()
+                    used_d = set()
+                    current_table = self.context.copy()
+                    request = []
 
-            while len(request) < max_length:
-                if (current_table.values == 1).all():
-                    break
+                    for char in pattern:
+                        if (current_table.values == 1).all():
+                            break
 
-                available_f = list(set(current_table.index) - used_f)
-                available_d = list(set(current_table.columns) - used_d)
+                        if char == 'f':
+                            available = list(set(current_table.index) - used_f)
+                        else:
+                            available = list(set(current_table.columns) - used_d)
 
-                candidates = []
-                if available_f:
-                    candidates.append('f')
-                if available_d:
-                    candidates.append('d')
+                        if not available:
+                            break  # Пропускаем, если нельзя выбрать
 
-                if not candidates:
-                    break
+                        selected = random.choice(available)
+                        if char == 'f':
+                            used_f.add(selected)
+                        else:
+                            used_d.add(selected)
 
-                choice_type = random.choice(candidates)
-                if choice_type == 'f':
-                    selected = random.choice(available_f)
-                    used_f.add(selected)
-                else:
-                    selected = random.choice(available_d)
-                    used_d.add(selected)
+                        current_table, elapsed = self.multi_derivation_procedure(selected, current_table)
+                        total_time += elapsed
+                        request.append(selected)
 
-                current_table, elapsed = self.multi_derivation_procedure(selected, current_table)
-                total_time += elapsed
-                request.append(selected)
+                    if len(request) == len(pattern):
+                        key = tuple(request)
+                        if key not in generated:
+                            generated.add(key)
+                            all_requests.append(request)
 
-            if request:
-                request_key = frozenset(request)
-                if request_key not in unique_sets:
-                    unique_sets.add(request_key)
-                    all_requests.append(request)
-            else:
-                print("⚠️ Запрос оказался пустым — возможно, ошибка в логике.")
+                if len(generated) < 5:
+                    print(
+                        f"⚠️ Не удалось сгенерировать 5 уникальных запросов для шаблона {pattern} (получено {len(generated)}).")
 
-        if len(all_requests) < count:
-            print(
-                f"⚠️ Удалось сгенерировать только {len(all_requests)} уникальных запросов из {count} после {attempts} попыток.")
-        else:
-            print(
-                f"\n✅ Генерация {len(all_requests)} уникальных наборов завершена. Общее время: {total_time:.8f} секунд.")
-
+        print(f"\n✅ Генерация завершена. Всего запросов: {len(all_requests)}. Общее время: {total_time:.8f} секунд.")
         return all_requests
 
     def user_interface(self):
@@ -674,8 +675,8 @@ class fca_lattice:
             elif choice == "3":
                 self.find_reachable_concepts()
             elif choice == "4":
-                n = int(input("Введите количество запросов для генерации: "))
-                self.generated_requests = self.generate_auto_requests(n)
+
+                self.generated_requests = self.generate_auto_requests()
                 print("\n📋 Сгенерированные запросы:")
                 for i, req in enumerate(self.generated_requests, 1):
                     print(f"{i}: {req}")
