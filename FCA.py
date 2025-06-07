@@ -69,6 +69,17 @@ class fca_lattice:
                     return False
         return True
 
+    def _is_canonical_fast(self, column_idx: int, new_a: set, current_b: set) -> bool:
+        """
+        Упрощённый и быстрый аналог is_cannonical без привязки к self.concepts[r].
+        """
+        for i in range(column_idx, -1, -1):
+            attr = self.context.columns[i]
+            if attr not in current_b:
+                if new_a.issubset(self.context_derivation_1[attr]):
+                    return False
+        return True
+
     def in_close(self, column: int, r: int, threshold=0.0):
 
         for j in range(column, self.columns_len):
@@ -82,7 +93,40 @@ class fca_lattice:
                         new_concept['B'].add(self.context.columns[j])
                         self.concepts.append(new_concept)
                         self.in_close(j + 1, len(self.concepts) - 1, threshold)
-        self.concepts_copy = copy.deepcopy(self.concepts)
+
+    def fast_in_close_full(self, threshold=0.0):
+        """
+        Полный аналог in_close, но работает быстрее.
+        Использует хэш множества A для фильтрации дублей.
+        """
+        self.concepts = []
+        self.concepts_set = set()  # множество хешей A для фильтрации
+
+        # супремум и инфимум
+        self.concepts.append({'A': set(self.context.index), 'B': set()})
+        self.concepts.append({'A': set(), 'B': set(self.context.columns)})
+
+        def recursive(column: int, r: int):
+            for j in range(column, self.columns_len):
+                col_j = self.context.columns[j]
+                new_a = self.context_derivation_1[col_j] & self.concepts[r]['A']
+
+                if len(new_a) == len(self.concepts[r]['A']):
+                    self.concepts[r]['B'].add(col_j)
+                elif new_a and len(new_a) > self.threshold_base * threshold:
+                    if self._is_canonical_fast(j - 1, new_a, self.concepts[r]['B']):
+                        new_b = self.concepts[r]['B'].copy()
+                        new_b.add(col_j)
+
+                        new_concept = {'A': new_a, 'B': new_b}
+                        concept_key = tuple(sorted(new_a))
+
+                        if concept_key not in self.concepts_set:
+                            self.concepts.append(new_concept)
+                            self.concepts_set.add(concept_key)
+                            recursive(j + 1, len(self.concepts) - 1)
+
+        recursive(0, 0)
 
     def __my_close__(self, column: int, concept_A: set, interval_number: int):
         """
@@ -104,7 +148,7 @@ class fca_lattice:
                     new_concept_a_len <= self.stack_intervals.loc[interval_number, 'right']):
                 if tp_concept_a not in self.concepts_set:
                     self.concepts_set.add(tp_concept_a)
-                    print('\r', len(self.concepts_set), end='')
+
                     self.__my_close__(j + 1, new_concept_a, interval_number)
             elif (new_concept_a_len <= self.stack_intervals.loc[interval_number, 'left']) & (new_concept_a_len > 0):
                 # print('\r', new_concept_a_len, end='')
@@ -468,7 +512,7 @@ class fca_lattice:
         matching_concepts = [(i, concept) for i, concept in concepts if element in concept[target_type]]
 
         elapsed = time.time() - start_time
-        print(f"⏱ Выполнение заняло {elapsed:.8f} секунд.")
+
         return matching_concepts, elapsed
 
     def interactive_multi_derivation_loop(self):
@@ -663,7 +707,7 @@ class fca_lattice:
                         generation_success = True  # хотя бы один запрос сгенерирован
 
             if not generation_success:
-                print(f"⛔ Не удалось сгенерировать запросы для шаблонов длины {length}. Остановка.")
+
                 break
 
         print(f"\n✅ Генерация завершена. Всего запросов: {len(all_requests)}.")
@@ -827,7 +871,7 @@ class AppController:
 
         print("\nГенерация концептов...")
         start_time = time.time()
-        self.lat.in_close(0, 0, 0)
+        self.lat.fast_in_close_full(threshold=0.05)
         print("Генерация завершена за %.2f секунд" % (time.time() - start_time))
         print("Количество концептов:", len(self.lat.concepts))
 
@@ -865,22 +909,21 @@ class AppController:
                     print(f"\n📐 Размер: {size}x{size}, плотность: {density}")
 
                     # Генерация контекста
-                    mock = MockContext(size, size, density, seed=42)
+                    mock = MockContext(size, size, density)
                     table = mock.context_df
+                    self.mock = mock
+                    self.mock.save_to_csv("table.csv")
 
-                    print("\n--- Сгенерированная таблица (table) ---")
-                    print(table)
+
 
                     # Построение решетки и концептов
                     lattice = fca_lattice(table)
-                    lattice.in_close(0, 0, 0)
+                    lattice.fast_in_close_full(threshold=0.05)
 
-                    print("\n--- Список концептов (concepts) ---")
-                    for i, concept in enumerate(lattice.concepts):
-                        print(f"{i}: {concept}")
+
 
                     # Генерация запросов
-                    auto_requests = lattice.generate_auto_requests()[:105]  # максимум 105 штук
+                    auto_requests = lattice.generate_auto_requests()
 
                     for request in auto_requests:
                         temp_table = table.copy()
@@ -901,6 +944,8 @@ class AppController:
                                                    f"{total_derivation_time:.6f}"])
                         concepts_writer.writerow([size, size, density, d_count, f_count,
                                                   f"{total_concepts_time:.6f}"])
+                        derivation_file.flush()
+                        concepts_file.flush()
 
         print("\n✅ Эксперимент завершён. Логи сохранены в:")
         print(" →", derivation_log_path)
