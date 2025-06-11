@@ -95,22 +95,15 @@ class fca_lattice:
                         self.in_close(j + 1, len(self.concepts) - 1, threshold)
 
     def fast_in_close_full(self, threshold=0.0):
-        """
-        Полный аналог in_close, но работает быстрее.
-        Использует хэш множества A для фильтрации дублей.
-        """
-        self.concepts = []
-        self.concepts_set = set()  # множество хешей A для фильтрации
 
-        # супремум и инфимум
+        self.concepts = []
+        self.concepts_set = set()
         self.concepts.append({'A': set(self.context.index), 'B': set()})
         self.concepts.append({'A': set(), 'B': set(self.context.columns)})
-
         def recursive(column: int, r: int):
             for j in range(column, self.columns_len):
                 col_j = self.context.columns[j]
                 new_a = self.context_derivation_1[col_j] & self.concepts[r]['A']
-
                 if len(new_a) == len(self.concepts[r]['A']):
                     self.concepts[r]['B'].add(col_j)
                 elif new_a and len(new_a) > self.threshold_base * threshold:
@@ -266,41 +259,30 @@ class fca_lattice:
 
     def multi_derivation_procedure(self, element: str, table: pd.DataFrame) -> pd.DataFrame:
         start_time = time.time()
-
         element = element.strip().lower()
-
         if element.startswith("f"):
             axis = 0
         elif element.startswith("d"):
             axis = 1
         else:
-            print("⚠️ Неизвестный тип элемента:", element)
-            return table  # возвращаем ту же таблицу без изменений
-
+            print("Неизвестный тип элемента:", element)
+            return table
         elements = [element]
-
         result1 = self.multi_derivation(axis, "AND", elements)
         if result1 is None:
             return table
-
         result2 = self.multi_derivation(1 - axis, "OR", list(result1))
         if result2 is None:
             return table
-
-        # фильтруем текущую таблицу
         if axis == 0:
             table = table.loc[:, table.columns.intersection(result1)]
         else:
             table = table.loc[table.index.intersection(result1), :]
-
         if (1 - axis) == 0:
             table = table.loc[:, table.columns.intersection(result2)]
         else:
             table = table.loc[table.index.intersection(result2), :]
-
         elapsed = time.time() - start_time
-
-
         return table, elapsed
 
     def print_indexes(self):
@@ -500,19 +482,15 @@ class fca_lattice:
 
         start_time = time.time()
         element = element.strip().lower()
-
         if element.startswith("f"):
             target_type = "A"
         elif element.startswith("d"):
             target_type = "B"
         else:
-            print("⚠️ Неизвестный тип элемента:", element)
+            print("Неизвестный тип элемента:", element)
             return [], 0.0
-
         matching_concepts = [(i, concept) for i, concept in concepts if element in concept[target_type]]
-
         elapsed = time.time() - start_time
-
         return matching_concepts, elapsed
 
     def interactive_multi_derivation_loop(self):
@@ -652,20 +630,14 @@ class fca_lattice:
             6: ['dddddf', 'ddddff', 'dddfff', 'ddffff', 'dfffff'],
             7: ['ddddddf', 'dddddff', 'ddddfff', 'dddffff', 'ddfffff', 'dffffff'],
         }
-
         all_requests = []
         total_time = 0.0
-
-        # Фильтрация концептов: только те, у которых непустые множества A и B
         filtered_concepts = [(i, c) for i, c in enumerate(self.concepts) if c['A'] and c['B']]
-
         for length, patterns in patterns_by_length.items():
-            generation_success = False  # отслеживаем хотя бы один успешный запрос
-
+            generation_success = False
             for pattern in patterns:
                 generated = set()
                 attempts = 0
-
                 while len(generated) < 5 and attempts < 1000:
                     attempts += 1
                     current_concepts = filtered_concepts.copy()
@@ -673,44 +645,34 @@ class fca_lattice:
                     used_d = set()
                     request = []
                     early_stop = False
-
                     for char in pattern:
                         available_f = set()
                         available_d = set()
                         for _, concept in current_concepts:
                             available_f.update(concept['A'])
                             available_d.update(concept['B'])
-
                         available_f -= used_f
                         available_d -= used_d
-
                         candidates = list(available_f) if char == 'f' else list(available_d)
-
                         if not candidates:
                             early_stop = True
                             break
-
                         selected = random.choice(candidates)
                         request.append(selected)
-
                         if char == 'f':
                             current_concepts = [(i, c) for i, c in current_concepts if selected in c['A']]
                             used_f.add(selected)
                         else:
                             current_concepts = [(i, c) for i, c in current_concepts if selected in c['B']]
                             used_d.add(selected)
-
                     key = tuple(request)
                     if len(request) == len(pattern) and key not in generated:
                         generated.add(key)
                         all_requests.append(request)
-                        generation_success = True  # хотя бы один запрос сгенерирован
-
+                        generation_success = True
             if not generation_success:
-
                 break
-
-        print(f"\n✅ Генерация завершена. Всего запросов: {len(all_requests)}.")
+        print(f"\nГенерация завершена. Всего запросов: {len(all_requests)}.")
         return all_requests
 
     def user_interface(self):
@@ -718,10 +680,10 @@ class fca_lattice:
             print("\nВыберите действие:")
             print("1. Выполнить поиск через деревацию")
             print("2. Выполнить поиск через концепты")
-            print("3. Найти достижимые концепты от супремума/инфимума")
-            print("4. Автоматическая генерация запросов")
-            print("5. Построить граф решётки")
-            print("6. Выход")
+
+            print("3. Автоматическая генерация запросов")
+
+            print("4. Выход")
 
             choice = input("Введите номер выбранной опции (1-6): ")
 
@@ -729,9 +691,9 @@ class fca_lattice:
                 self.interactive_multi_derivation_loop()
             elif choice == "2":
                 self.interactive_find_element_loop()
-            elif choice == "3":
+            elif choice == "33":
                 self.find_reachable_concepts()
-            elif choice == "4":
+            elif choice == "3":
 
                 self.generated_requests = self.generate_auto_requests()
                 print("\n📋 Сгенерированные запросы:")
@@ -740,7 +702,7 @@ class fca_lattice:
             elif choice == "5":
                 self.fill_lattice()
                 self.lat_draw()
-            elif choice == "6":
+            elif choice == "4":
                 print("Выход из программы...")
                 break
             else:
@@ -955,7 +917,7 @@ class AppController:
 
     def run(self):
         while True:
-            print("\n=== Главная Менюшка ===")
+            print("\n=== Главное Меню ===")
             print("1. Пользовательский интерфейс")
             print("2. Эксперимент")
             print("3. Выход")
